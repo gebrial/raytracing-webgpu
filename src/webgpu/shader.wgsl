@@ -30,11 +30,21 @@ struct Camera {
 };
 @group(0) @binding(1) var<uniform> uCamera: Camera;
 
+struct FrameTime {
+  frame: f32,
+  time: f32,
+};
+@group(0) @binding(2) var<uniform> uFrameTime: FrameTime;
+
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   // define screen aspect ratio
   let aspect_ratio = uCanvas.size.x / uCanvas.size.y;
 
   let uv = pos.xy / uCanvas.size;
-  return vec4<f32>(uv.x, uv.y, random(uv), 1.0);
+  // Use frame and time in color output for demonstration
+  let t = uFrameTime.time;
+  let f = uFrameTime.frame;
+  let blue = random(uv + random(vec2<f32>(t, f)));
+  return vec4<f32>(uv.x, uv.y, blue, 1.0);
 }

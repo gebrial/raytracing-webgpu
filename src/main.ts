@@ -27,7 +27,10 @@ window.addEventListener('resize', () => {
 import('./webgpu/init').then(async ({ initWebGPU }) => {
   const { device, context } = await initWebGPU(canvas);
   const { render } = await import('./webgpu/renderer');
-  await render(device, context);
+  // Call render and keep cleanup function
+  let cleanup: (() => void) | undefined;
+  cleanup = await render(device, context);
+  // Optionally handle cleanup on hot reload or navigation
 }).catch(err => {
   app.innerHTML = `<p style="color:red;">${err.message}</p>`;
 });
