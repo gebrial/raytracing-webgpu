@@ -6,6 +6,21 @@ struct CanvasSize {
 };
 @group(0) @binding(0) var<uniform> uCanvas: CanvasSize;
 
+// todo use forward and up vectors in viewport
+// define camera position
+struct Camera {
+  position: vec3<f32>,
+  forward: vec3<f32>,
+  up: vec3<f32>,
+};
+@group(0) @binding(1) var<uniform> uCamera: Camera;
+
+struct FrameTime {
+  frame: f32,
+  time: f32,
+};
+@group(0) @binding(2) var<uniform> uFrameTime: FrameTime;
+
 @vertex
 fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
@@ -23,28 +38,50 @@ fn random(st: vec2<f32>) -> f32 {
     return fract(sin_val * 43758.5453123);
 }
 
-// define camera position
-struct Camera {
-  position: vec3<f32>,
-  rotation: vec3<f32>,
-};
-@group(0) @binding(1) var<uniform> uCamera: Camera;
+struct Ray {
+  origin: vec3<f32>,
+  direction: vec3<f32>,
+}
 
-struct FrameTime {
-  frame: f32,
-  time: f32,
-};
-@group(0) @binding(2) var<uniform> uFrameTime: FrameTime;
+fn ray_color(ray: Ray) -> vec3<f32> {
+  // Placeholder for ray tracing logic
+  // For now, just return a color based on the ray direction
+  let unit_direction = normalize(ray.direction);
+  let t = 0.5 * (unit_direction.y + 1.0);
+  return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
+}
+
+fn get_ray(pos: vec4<f32>) -> Ray {
+  let aspect_ratio = uCanvas.size.x / uCanvas.size.y;
+  let uv = pos.xy / uCanvas.size;
+
+  // camera
+  let focal_length = 1.0;
+  let viewport_height = 2.0;
+  let viewport_width = viewport_height * aspect_ratio;
+  let camera_center = uCamera.position;
+
+  // viewport horizontal/vertical vectors
+  let viewport_u = vec3<f32>(viewport_width, 0.0, 0.0);
+  let viewport_v = vec3<f32>(0.0, -viewport_height, 0.0);
+
+  // horizontal/vertical delta vectors between pixels, vec3
+  let pixel_delta_u = viewport_u / uCanvas.size.x;
+  let pixel_delta_v = viewport_v / uCanvas.size.y;
+
+  // location of upper left pixel
+  let viewport_upper_left = camera_center - vec3<f32>(0, 0, focal_length) - (viewport_u / 2.0) - (viewport_v / 2.0);
+  let pixel00_loc = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
+
+  let pixel_center = pixel00_loc + (pos.x * pixel_delta_u) + (pos.y * pixel_delta_v);
+  let ray_direction = pixel_center - camera_center;
+
+  return Ray(camera_center, ray_direction);
+}
 
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-  // define screen aspect ratio
-  let aspect_ratio = uCanvas.size.x / uCanvas.size.y;
-
-  let uv = pos.xy / uCanvas.size;
-  // Use frame and time in color output for demonstration
-  let t = uFrameTime.time;
-  let f = uFrameTime.frame;
-  let blue = random(uv + random(vec2<f32>(t, f)));
-  return vec4<f32>(uv.x, uv.y, blue, 1.0);
+  let ray = get_ray(pos);
+  let color = ray_color(ray);
+  return vec4<f32>(color, 1.0);
 }
