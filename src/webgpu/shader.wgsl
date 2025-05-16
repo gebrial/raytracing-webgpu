@@ -60,14 +60,14 @@ fn ray_color(ray: Ray) -> vec3<f32> {
 fn hit_sphere(center: vec3<f32>, radius: f32, ray: Ray) -> f32 {
   let oc = center - ray.origin;
   let a = dot(ray.direction, ray.direction);
-  let b = -2.0 * dot(oc, ray.direction);
+  let h = dot(oc, ray.direction);
   let c = dot(oc, oc) - radius * radius;
-  let discriminant = b * b - 4.0 * a * c;
+  let discriminant = h * h - a * c;
   if (discriminant < 0.0) {
     return -1.0;
   }
 
-  return (-b - sqrt(discriminant)) / (2.0 * a);
+  return (h - sqrt(discriminant)) / a;
 }
 
 fn get_ray(pos: vec4<f32>) -> Ray {
