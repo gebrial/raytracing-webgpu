@@ -44,24 +44,30 @@ struct Ray {
 }
 
 fn ray_color(ray: Ray) -> vec3<f32> {
-  if (hit_sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5, ray)) {
-    return vec3<f32>(1.0, 0.0, 0.0); // Red color for the sphere
+  let t = hit_sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5, ray);
+  if (t > 0.0) {
+    let N = normalize(ray.origin + t * ray.direction - vec3<f32>(0.0, 0.0, -1.0));
+    return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
   }
 
   // Placeholder for ray tracing logic
   // For now, just return a color based on the ray direction
   let unit_direction = normalize(ray.direction);
-  let t = 0.5 * (unit_direction.y + 1.0);
-  return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
+  let a = 0.5 * (unit_direction.y + 1.0);
+  return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
 }
 
-fn hit_sphere(center: vec3<f32>, radius: f32, ray: Ray) -> bool {
+fn hit_sphere(center: vec3<f32>, radius: f32, ray: Ray) -> f32 {
   let oc = center - ray.origin;
   let a = dot(ray.direction, ray.direction);
   let b = -2.0 * dot(oc, ray.direction);
   let c = dot(oc, oc) - radius * radius;
   let discriminant = b * b - 4.0 * a * c;
-  return discriminant >= 0.0;
+  if (discriminant < 0.0) {
+    return -1.0;
+  }
+
+  return (-b - sqrt(discriminant)) / (2.0 * a);
 }
 
 fn get_ray(pos: vec4<f32>) -> Ray {
