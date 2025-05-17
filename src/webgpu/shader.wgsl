@@ -43,10 +43,48 @@ struct Ray {
   direction: vec3<f32>,
 }
 
+struct hit_record {
+  t: f32, // hit time?
+  p: vec3<f32>, // hit point
+  normal: vec3<f32>, // surface normal at hit point
+};
+
+struct Sphere {
+  center: vec3<f32>,
+  radius: f32,
+};
+
+fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
+  let oc = sphere.center - ray.origin;
+  let a = dot(ray.direction, ray.direction);
+  let h = dot(oc, ray.direction);
+  let c = dot(oc, oc) - sphere.radius * sphere.radius;
+  let discriminant = h * h - a * c;
+  if (discriminant < 0.0) {
+    return hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  }
+
+  let sqrtd = sqrt(discriminant);
+
+  var root = (h - sqrtd) / a;
+  if (root <= ray_tmin || ray_tmax<= root) {
+    root = (h + sqrtd) / a;
+    if (root <= ray_tmin || ray_tmax <= root) {
+      return hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+    }
+  }
+
+  var rec = hit_record(0.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  rec.t = root;
+  rec.p = ray.origin + root * ray.direction;
+  rec.normal = (rec.p - sphere.center) / sphere.radius; // length 1 vector
+  return rec;
+}
+
 fn ray_color(ray: Ray) -> vec3<f32> {
-  let t = hit_sphere(Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5), ray);
-  if (t > 0.0) {
-    let N = normalize(ray.origin + t * ray.direction - vec3<f32>(0.0, 0.0, -1.0));
+  let rec = hit_sphere(Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5), ray, 0.0, 100.0);
+  if (rec.t > 0.0) {
+    let N = rec.normal ;
     return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
   }
 
@@ -55,24 +93,6 @@ fn ray_color(ray: Ray) -> vec3<f32> {
   let unit_direction = normalize(ray.direction);
   let a = 0.5 * (unit_direction.y + 1.0);
   return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
-}
-
-struct Sphere {
-  center: vec3<f32>,
-  radius: f32,
-};
-
-fn hit_sphere(sphere: Sphere, ray: Ray) -> f32 {
-  let oc = sphere.center - ray.origin;
-  let a = dot(ray.direction, ray.direction);
-  let h = dot(oc, ray.direction);
-  let c = dot(oc, oc) - sphere.radius * sphere.radius;
-  let discriminant = h * h - a * c;
-  if (discriminant < 0.0) {
-    return -1.0;
-  }
-
-  return (h - sqrt(discriminant)) / a;
 }
 
 fn get_ray(pos: vec4<f32>) -> Ray {
