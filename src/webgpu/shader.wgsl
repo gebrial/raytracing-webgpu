@@ -44,7 +44,7 @@ struct Ray {
 }
 
 fn ray_color(ray: Ray) -> vec3<f32> {
-  let t = hit_sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5, ray);
+  let t = hit_sphere(Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5), ray);
   if (t > 0.0) {
     let N = normalize(ray.origin + t * ray.direction - vec3<f32>(0.0, 0.0, -1.0));
     return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
@@ -57,11 +57,16 @@ fn ray_color(ray: Ray) -> vec3<f32> {
   return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
 }
 
-fn hit_sphere(center: vec3<f32>, radius: f32, ray: Ray) -> f32 {
-  let oc = center - ray.origin;
+struct Sphere {
+  center: vec3<f32>,
+  radius: f32,
+};
+
+fn hit_sphere(sphere: Sphere, ray: Ray) -> f32 {
+  let oc = sphere.center - ray.origin;
   let a = dot(ray.direction, ray.direction);
   let h = dot(oc, ray.direction);
-  let c = dot(oc, oc) - radius * radius;
+  let c = dot(oc, oc) - sphere.radius * sphere.radius;
   let discriminant = h * h - a * c;
   if (discriminant < 0.0) {
     return -1.0;
