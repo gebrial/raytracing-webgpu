@@ -124,10 +124,6 @@ fn interval_ahead() -> Interval {
   return Interval(0.0, RAY_TMAX);
 }
 
-fn interval(min: f32, max: f32) -> Interval {
-  return Interval(min, max);
-}
-
 
 fn interval_size(interval: Interval) -> f32 {
   return interval.max - interval.min;
@@ -198,7 +194,7 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_t: Interval) -> HitRecord {
 
 // Returns the closest hit among all spheres
 fn hit_spheres(ray: Ray, ray_t: Interval) -> HitRecord {
-  var travel_interval = interval(ray_t.min, ray_t.max);
+  var travel_interval = Interval(ray_t.min, ray_t.max);
   var temp_rec = default_hit_record();
   for (var i: u32 = 0u; i < uNumSpheres; i = i + 1u) {
     let rec = hit_sphere(spheres[i], ray, travel_interval);
@@ -216,7 +212,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
   var new_ray = Ray(ray.origin, ray.direction);
   var ray_color = vec3<f32>(1.0);
   while (bounces_left > 0u) {
-    let hit_rec = hit_spheres(new_ray, interval(0.001, INF));
+    let hit_rec = hit_spheres(new_ray, Interval(0.001, INF));
     if (hit_rec.t > 0.0) {
       // bounce the ray
       new_ray.origin = hit_rec.p; // offset to avoid self-intersection
