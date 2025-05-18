@@ -2,6 +2,8 @@
 // Fullscreen triangle gradient shader
 
 const RAY_TMAX: f32 = 100000.0;
+const PI: f32 = 3.141592653589793;
+const INF: f32 = 3.402823466e+38; // Maximum finite f32 value
 
 struct CanvasSize {
   size: vec2<f32>,
@@ -40,6 +42,51 @@ fn random(st: vec2<f32>) -> f32 {
     return fract(sin_val * 43758.5453123);
 }
 
+fn degrees_to_radians(degrees: f32) -> f32 {
+  return degrees * (PI / 180.0);
+}
+
+
+
+
+// Interval struct and functions
+struct Interval {
+  min: f32,
+  max: f32,
+};
+
+fn interval_universe() -> Interval {
+  return Interval(-INF, INF);
+}
+
+fn interval_empty() -> Interval {
+  return Interval(INF, -INF);
+}
+
+fn interval_ahead() -> Interval {
+  return Interval(0.0, RAY_TMAX);
+}
+
+fn interval(min: f32, max: f32) -> Interval {
+  return Interval(min, max);
+}
+
+
+fn interval_size(interval: Interval) -> f32 {
+  return interval.max - interval.min;
+}
+// returns true if the value is within the interval, boundaries included
+fn interval_contains(interval: Interval, value: f32) -> bool {
+  return (value >= interval.min && value <= interval.max);
+}
+// returns true if the value is inside the interval, boundaries excluded
+fn interval_surrounds(interval: Interval, value: f32) -> bool {
+  return (value > interval.min && value < interval.max);
+}
+
+
+
+
 struct Ray {
   origin: vec3<f32>,
   direction: vec3<f32>,
@@ -64,7 +111,7 @@ struct Sphere {
 @group(0) @binding(3) var<storage, read> spheres: array<Sphere>;
 @group(0) @binding(4) var<uniform> uNumSpheres: u32;
 
-fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitRecord {
+fn hit_sphere(sphere: Sphere, ray: Ray, ray_t: Interval) -> HitRecord {
   let oc = sphere.center - ray.origin;
   let a = dot(ray.direction, ray.direction);
   let h = dot(oc, ray.direction);
@@ -78,9 +125,9 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitReco
 
   // Find the nearest root in the range [ray_tmin, ray_tmax]
   var root = (h - sqrtd) / a;
-  if (root <= ray_tmin || ray_tmax<= root) {
+  if (root <= ray_t.min || ray_t.max <= root) {
     root = (h + sqrtd) / a;
-    if (root <= ray_tmin || ray_tmax <= root) {
+    if (root <= ray_t.min || ray_t.max <= root) {
       return default_hit_record();
     }
   }
@@ -93,13 +140,13 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitReco
 }
 
 // Returns the closest hit among all spheres
-fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitRecord {
-  var closest_so_far = ray_tmax;
+fn hit_spheres(ray: Ray, ray_t: Interval) -> HitRecord {
+  var travel_interval = interval(ray_t.min, ray_t.max);
   var temp_rec = default_hit_record();
   for (var i: u32 = 0u; i < uNumSpheres; i = i + 1u) {
-    let rec = hit_sphere(spheres[i], ray, ray_tmin, closest_so_far);
-    if (rec.t > 0.0 && rec.t < closest_so_far) {
-      closest_so_far = rec.t;
+    let rec = hit_sphere(spheres[i], ray, travel_interval);
+    if (rec.t > 0.0 && rec.t < travel_interval.max) {
+      travel_interval.max = rec.t;
       temp_rec = rec;
     }
   }
@@ -108,7 +155,7 @@ fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitRecord {
 }
 
 fn ray_color(ray: Ray) -> vec3<f32> {
-  let rec = hit_spheres(ray, 0.0, RAY_TMAX);
+  let rec = hit_spheres(ray, interval_ahead());
   if (rec.t > 0.0) {
     let N = rec.normal;
     return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
