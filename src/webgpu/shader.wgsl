@@ -1,6 +1,8 @@
 // src/webgpu/shader.wgsl
 // Fullscreen triangle gradient shader
 
+const RAY_TMAX: f32 = 100000.0;
+
 struct CanvasSize {
   size: vec2<f32>,
 };
@@ -43,11 +45,15 @@ struct Ray {
   direction: vec3<f32>,
 }
 
-struct hit_record {
+struct HitRecord {
   t: f32, // hit time?
   p: vec3<f32>, // hit point
   normal: vec3<f32>, // surface normal at hit point
 };
+
+fn default_hit_record() -> HitRecord {
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+}
 
 struct Sphere {
   center: vec3<f32>,
@@ -58,14 +64,14 @@ struct Sphere {
 @group(0) @binding(3) var<storage, read> spheres: array<Sphere>;
 @group(0) @binding(4) var<uniform> uNumSpheres: u32;
 
-fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
+fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitRecord {
   let oc = sphere.center - ray.origin;
   let a = dot(ray.direction, ray.direction);
   let h = dot(oc, ray.direction);
   let c = dot(oc, oc) - sphere.radius * sphere.radius;
   let discriminant = h * h - a * c;
   if (discriminant < 0.0) {
-    return hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+    return default_hit_record();
   }
 
   let sqrtd = sqrt(discriminant);
@@ -75,11 +81,11 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_rec
   if (root <= ray_tmin || ray_tmax<= root) {
     root = (h + sqrtd) / a;
     if (root <= ray_tmin || ray_tmax <= root) {
-      return hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+      return default_hit_record();
     }
   }
 
-  var rec = hit_record(0.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  var rec = default_hit_record();
   rec.t = root;
   rec.p = ray.origin + root * ray.direction;
   rec.normal = (rec.p - sphere.center) / sphere.radius; // length 1 vector facing outwards
@@ -87,9 +93,9 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_rec
 }
 
 // Returns the closest hit among all spheres
-fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
+fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> HitRecord {
   var closest_so_far = ray_tmax;
-  var temp_rec = hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  var temp_rec = default_hit_record();
   for (var i: u32 = 0u; i < uNumSpheres; i = i + 1u) {
     let rec = hit_sphere(spheres[i], ray, ray_tmin, closest_so_far);
     if (rec.t > 0.0 && rec.t < closest_so_far) {
@@ -102,7 +108,7 @@ fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
 }
 
 fn ray_color(ray: Ray) -> vec3<f32> {
-  let rec = hit_spheres(ray, 0.0, 100.0);
+  let rec = hit_spheres(ray, 0.0, RAY_TMAX);
   if (rec.t > 0.0) {
     let N = rec.normal;
     return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
