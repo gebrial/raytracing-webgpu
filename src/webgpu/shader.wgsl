@@ -194,7 +194,15 @@ fn ray_color(ray: Ray) -> vec3<f32> {
   return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
 }
 
-fn get_ray(pos: vec4<f32>) -> Ray {
+// return a random point in a square
+// this is a square in the range [-0.5, 0.5] in x and y
+fn sample_square(rng_state: ptr<function, u32>) -> vec2<f32> {
+  let x = rngNextFloat(rng_state) - 0.5;
+  let y = rngNextFloat(rng_state) - 0.5;
+  return vec2<f32>(x, y);
+}
+
+fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>) -> Ray {
   let aspect_ratio = uCanvas.size.x / uCanvas.size.y;
   let uv = pos.xy / uCanvas.size;
 
@@ -216,7 +224,8 @@ fn get_ray(pos: vec4<f32>) -> Ray {
   let viewport_upper_left = camera_center - vec3<f32>(0, 0, focal_length) - (viewport_u / 2.0) - (viewport_v / 2.0);
   let pixel00_loc = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
-  let pixel_center = pixel00_loc + (pos.x * pixel_delta_u) + (pos.y * pixel_delta_v);
+  let jiggle = sample_square(rng_state);
+  let pixel_center = pixel00_loc + ((pos.x + jiggle.x) * pixel_delta_u) + ((pos.y + jiggle.y) * pixel_delta_v);
   let ray_direction = pixel_center - camera_center;
 
   return Ray(camera_center, ray_direction);
@@ -224,7 +233,23 @@ fn get_ray(pos: vec4<f32>) -> Ray {
 
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-  let ray = get_ray(pos);
-  let color = ray_color(ray);
+  let pixel = vec2<u32>(u32(pos.x), u32(pos.y));
+  let resolution = vec2<u32>(u32(uCanvas.size.x), u32(uCanvas.size.y));
+  let frame = u32(uFrameTime.frame);
+  var rng_state: u32 = initRng(pixel, resolution, frame);
+
+  // average over multiple samples
+  let samples = 100u;
+  var color = vec3<f32>(0.0);
+  for (var i: u32 = 0u; i < samples; i = i + 1u) {
+    let ray = get_ray(pos, &rng_state);
+    var tmp_color = ray_color(ray);
+    tmp_color.x = clamp(tmp_color.x, 0.0, 1.0);
+    tmp_color.y = clamp(tmp_color.y, 0.0, 1.0);
+    tmp_color.z = clamp(tmp_color.z, 0.0, 1.0);
+    color += tmp_color;
+  }
+  color /= f32(samples);
+  color = sqrt(color); // gamma correction
   return vec4<f32>(color, 1.0);
 }
