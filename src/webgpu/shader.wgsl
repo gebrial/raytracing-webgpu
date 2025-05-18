@@ -220,7 +220,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
     if (hit_rec.t > 0.0) {
       // bounce the ray
       new_ray.origin = hit_rec.p; // offset to avoid self-intersection
-      new_ray.direction = random_on_hemisphere(rng_state, hit_rec.normal);
+      new_ray.direction = hit_rec.normal + random_unit_vector(rng_state); // lambertian bounce
       bounces_left = bounces_left - 1u;
       ray_color *= 0.5;
     } else {
