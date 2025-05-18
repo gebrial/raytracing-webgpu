@@ -274,7 +274,16 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
           refractive_index_ratio = 1.0 / refractive_index_ratio;
           hit_rec.normal = -hit_rec.normal; // flip the normal
         }
-        new_ray.direction = refract_ray(new_ray, hit_rec.normal, refractive_index_ratio);
+
+        let cos_theta = min(dot(-new_ray.direction, hit_rec.normal), 1.0);
+        let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+        if (refractive_index_ratio * sin_theta > 1.0) {
+          // total internal reflection
+          new_ray.direction = reflect_ray(new_ray, hit_rec.normal);
+        } else {
+          // refract the ray
+          new_ray.direction = refract_ray(new_ray, hit_rec.normal, refractive_index_ratio);
+        }
       }
 
       ray_color *= hit_rec.material.color.xyz;

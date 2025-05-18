@@ -137,7 +137,7 @@ export async function render(device: any, context: any) {
 
   const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
   const material_center  = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
-  const material_left = new DielectricMaterial(1.50);
+  const material_left = new DielectricMaterial(1.0/1.33); // simulate air bubble under water
   const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
 
   const sphere_ground = new Sphere([0.0, -100.5, -1.0], 100.0, material_ground);
