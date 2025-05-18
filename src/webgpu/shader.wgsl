@@ -108,6 +108,7 @@ struct Material {
   color: vec4<f32>,
   diffuse: f32,
   specular: f32,
+  fuzz: f32,
 };
 
 
@@ -158,7 +159,7 @@ struct HitRecord {
 };
 
 fn default_hit_record() -> HitRecord {
-  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0));
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0, 0.0));
 }
 
 struct Sphere {
@@ -244,7 +245,11 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
       let random_num = rngNextFloat(rng_state);
       if (random_num < hit_rec.material.specular) {
         // specular reflection
-        new_ray.direction = reflect_ray(new_ray, hit_rec.normal);
+        new_ray.direction = normalize(reflect_ray(new_ray, hit_rec.normal));
+        new_ray.direction += hit_rec.material.fuzz * random_unit_vector(rng_state);
+        if (dot(new_ray.direction, hit_rec.normal) <= 0.0) {
+          return vec3<f32>(0.0); // ray is inside the sphere, return black
+        }
       } else {
         // diffuse reflection
         new_ray.direction = scatter_ray(hit_rec.normal, rng_state);

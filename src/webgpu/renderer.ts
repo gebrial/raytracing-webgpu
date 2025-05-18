@@ -29,11 +29,13 @@ class Material {
   protected color: Color;
   protected diffuse: number;
   protected specular: number;
+  protected fuzz: number = 0.0;
 
-  constructor(color: Color, diffuse: number, specular: number) {
+  constructor(color: Color, diffuse: number, specular: number, fuzz: number = 0.0) {
     this.color = color;
     this.diffuse = diffuse;
     this.specular = specular;
+    this.fuzz = fuzz;
   }
 
   getMaterial(): number[] {
@@ -41,7 +43,8 @@ class Material {
       ...this.color.getColor(),
       this.diffuse,
       this.specular,
-      0.0, 0.0, // padding
+      this.fuzz,
+      0.0, // padding
     ];
   }
 }
@@ -54,9 +57,9 @@ class LambertianMaterial extends Material {
 }
 
 class MetalMaterial extends Material {
-  constructor(color: Color) {
+  constructor(color: Color, fuzz: number) {
     const diffuse = 0.0; // Metal materials have a diffuse value of 0.0
-    super(color, diffuse, 1.0 - diffuse);
+    super(color, diffuse, 1.0 - diffuse, fuzz);
   }
 }
 
@@ -125,8 +128,8 @@ export async function render(device: any, context: any) {
 
   const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
   const material_center  = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
-  const material_left = new MetalMaterial(new Color(0.8, 0.8, 0.8)); // white
-  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2)); // yellow-ish
+  const material_left = new MetalMaterial(new Color(0.8, 0.8, 0.8), 0.3); // white
+  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
 
   const sphere_ground = new Sphere([0.0, -100.5, -1.0], 100.0, material_ground);
   const sphere_center = new Sphere([0.0, 0.0, -1.2], 0.5, material_center);
