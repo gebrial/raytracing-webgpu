@@ -232,7 +232,7 @@ fn scatter_ray(normal: vec3<f32>, rng_state: ptr<function, u32>) -> vec3<f32> {
   return normalize(scatter_direction);
 }
 
-// refractive_index_ratio is eta' / eta
+// refractive_index_ratio is eta / eta'
 // eta' is the refractive index of the medium the ray is entering
 // eta is the refractive index of the medium the ray is leaving
 fn refract_ray(ray: Ray, normal: vec3<f32>, refractive_index_ratio: f32) -> vec3<f32> {
@@ -240,6 +240,14 @@ fn refract_ray(ray: Ray, normal: vec3<f32>, refractive_index_ratio: f32) -> vec3
   let r_out_perp = refractive_index_ratio * (ray.direction + cos_theta * normal);
   let r_out_parallel = -sqrt(abs(1.0 - dot(r_out_perp, r_out_perp))) * normal;
   return r_out_perp + r_out_parallel;
+}
+
+fn reflectance(cosine: f32, refractive_index_ratio: f32) -> f32 {
+  // Schlick's approximation for reflectance
+  // https://www.desmos.com/calculator/9stibbnjmk
+  var r0 = (1.0 - refractive_index_ratio) / (1.0 + refractive_index_ratio);
+  r0 = r0 * r0;
+  return r0 + (1.0 - r0) * pow(1.0 - cosine, 5.0);
 }
 
 fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
@@ -277,7 +285,9 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
 
         let cos_theta = min(dot(-new_ray.direction, hit_rec.normal), 1.0);
         let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
-        if (refractive_index_ratio * sin_theta > 1.0) {
+        let cannot_refract = refractive_index_ratio * sin_theta > 1.0;
+        let random_num2 = rngNextFloat(rng_state);
+        if (cannot_refract || reflectance(cos_theta, refractive_index_ratio) > random_num2) {
           // total internal reflection
           new_ray.direction = reflect_ray(new_ray, hit_rec.normal);
         } else {
