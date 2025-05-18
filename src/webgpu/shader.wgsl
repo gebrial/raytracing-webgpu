@@ -104,6 +104,11 @@ fn degrees_to_radians(degrees: f32) -> f32 {
 }
 
 
+struct Material {
+  color: vec4<f32>,
+  diffuse: f32,
+  specular: f32,
+};
 
 
 // Interval struct and functions
@@ -149,15 +154,17 @@ struct HitRecord {
   t: f32, // hit time?
   p: vec3<f32>, // hit point
   normal: vec3<f32>, // surface normal at hit point
+  material: Material, // material at hit point
 };
 
 fn default_hit_record() -> HitRecord {
-  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0));
 }
 
 struct Sphere {
   center: vec3<f32>,
   radius: f32,
+  material: Material,
 };
 
 // Storage buffer for spheres
@@ -189,6 +196,7 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_t: Interval) -> HitRecord {
   rec.t = root;
   rec.p = ray.origin + root * ray.direction;
   rec.normal = (rec.p - sphere.center) / sphere.radius; // length 1 vector facing outwards
+  rec.material = sphere.material;
   return rec;
 }
 
@@ -207,18 +215,42 @@ fn hit_spheres(ray: Ray, ray_t: Interval) -> HitRecord {
   return temp_rec;
 }
 
+fn reflect_ray(ray: Ray, normal: vec3<f32>) -> vec3<f32> {
+  return ray.direction - 2.0 * dot(ray.direction, normal) * normal;
+}
+
+fn scatter_ray(normal: vec3<f32>, rng_state: ptr<function, u32>) -> vec3<f32> {
+  // Lambertian scatter
+  var scatter_direction = normal + random_unit_vector(rng_state);
+  // Catch degenerate scatter direction
+  if (length(scatter_direction) < 0.001) {
+    scatter_direction = normal;
+  }
+  return normalize(scatter_direction);
+}
+
 fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
   var bounces_left = 10u;
   var new_ray = Ray(ray.origin, ray.direction);
   var ray_color = vec3<f32>(1.0);
   while (bounces_left > 0u) {
-    let hit_rec = hit_spheres(new_ray, Interval(0.001, INF));
+    let hit_rec = hit_spheres(new_ray, Interval(0.001, INF));  // offset in interval to avoid self-intersection
     if (hit_rec.t > 0.0) {
-      // bounce the ray
-      new_ray.origin = hit_rec.p; // offset to avoid self-intersection
-      new_ray.direction = hit_rec.normal + random_unit_vector(rng_state); // lambertian bounce
       bounces_left = bounces_left - 1u;
-      ray_color *= 0.5;
+
+      // bounce the ray
+      new_ray.origin = hit_rec.p;
+
+      let random_num = rngNextFloat(rng_state);
+      if (random_num < hit_rec.material.specular) {
+        // specular reflection
+        new_ray.direction = reflect_ray(new_ray, hit_rec.normal);
+      } else {
+        // diffuse reflection
+        new_ray.direction = scatter_ray(hit_rec.normal, rng_state);
+      }
+
+      ray_color *= hit_rec.material.color.xyz;
     } else {
       // For now, just return a color based on the ray direction
       let unit_direction = normalize(new_ray.direction);
@@ -283,7 +315,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   var rng_state: u32 = initRng(pixel, resolution, frame);
 
   // average over multiple samples
-  let samples_sqrt = 10u;
+  let samples_sqrt = 50u;
   let samples = samples_sqrt * samples_sqrt;
   var color = vec3<f32>(0.0);
   for (var i: u32 = 0u; i < samples; i = i + 1u) {

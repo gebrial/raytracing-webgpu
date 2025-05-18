@@ -1,6 +1,85 @@
 // src/webgpu/renderer.ts
 // Basic renderer that draws a gradient using a fullscreen triangle and a simple WGSL shader
 
+class Color {
+  private r: number;
+  private g: number;
+  private b: number;
+  private a: number;
+
+  constructor(r: number, g: number, b: number, a: number = 1.0) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+
+  getColor(): number[] {
+    return [this.r, this.g, this.b, this.a];
+  }
+  setColor(r: number, g: number, b: number, a: number = 1.0) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+}
+
+class Material {
+  protected color: Color;
+  protected diffuse: number;
+  protected specular: number;
+
+  constructor(color: Color, diffuse: number, specular: number) {
+    this.color = color;
+    this.diffuse = diffuse;
+    this.specular = specular;
+  }
+
+  getMaterial(): number[] {
+    return [
+      ...this.color.getColor(),
+      this.diffuse,
+      this.specular,
+      0.0, 0.0, // padding
+    ];
+  }
+}
+
+class LambertianMaterial extends Material {
+  constructor(color: Color) {
+    const diffuse = 1.0; // Lambertian materials have a diffuse value of 1.0
+    super(color, diffuse, 1.0 - diffuse);
+  }
+}
+
+class MetalMaterial extends Material {
+  constructor(color: Color) {
+    const diffuse = 0.0; // Metal materials have a diffuse value of 0.0
+    super(color, diffuse, 1.0 - diffuse);
+  }
+}
+
+class Sphere {
+  private center: number[];
+  private radius: number;
+  private material: Material;
+
+  constructor(center: number[], radius: number, material: Material) {
+    this.center = center;
+    this.radius = radius;
+    this.material = material;
+  }
+
+  getSphere(): number[] {
+    return [
+      ...this.center,
+      this.radius,
+      ...this.material.getMaterial(),
+    ];
+  }
+}
+
 // Types are inferred from the browser, so no need to import from 'webgpu-types'.
 export async function render(device: any, context: any) {
   // Load WGSL shader from external file
@@ -44,16 +123,26 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
 
+  const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
+  const material_center  = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
+  const material_left = new MetalMaterial(new Color(0.8, 0.8, 0.8)); // white
+  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2)); // yellow-ish
+
+  const sphere_ground = new Sphere([0.0, -100.5, -1.0], 100.0, material_ground);
+  const sphere_center = new Sphere([0.0, 0.0, -1.2], 0.5, material_center);
+  const sphere_left = new Sphere([-1.0, 0.0, -1.0], 0.5, material_left);
+  const sphere_right = new Sphere([1.0, 0.0, -1.0], 0.5, material_right);
   // --- Spheres setup ---
-  // Each sphere: vec3 center (3 floats), f32 radius (1 float) = 16 bytes per sphere
-  // Example: two spheres
+  // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
+  // Example: two spheres with materials
   const spheres = [
-    // Sphere 1
-    0.0, 0.0, -1.0, 0.5, // center x, y, z, radius
-    // Sphere 2
-    0, -100.5, -1.0, 100.0, // center x, y, z, radius
+    ...sphere_ground.getSphere(),
+    ...sphere_center.getSphere(),
+    ...sphere_left.getSphere(),
+    ...sphere_right.getSphere(),
   ];
-  const numSpheres = spheres.length / 4;
+  const floatsPerSphere = 12;
+  const numSpheres = spheres.length / floatsPerSphere;
   const spheresBuffer = device.createBuffer({
     size: spheres.length * 4, // 4 bytes per float
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -166,10 +255,10 @@ export async function render(device: any, context: any) {
     renderPass.end();
     device.queue.submit([encoder.finish()]);
 
-    animationFrameId = requestAnimationFrame(frameLoop);
+    // animationFrameId = requestAnimationFrame(frameLoop);
   }
   frameLoop();
 
   // Return a cleanup function
-  return () => cancelAnimationFrame(animationFrameId);
+  // return () => cancelAnimationFrame(animationFrameId);
 }
