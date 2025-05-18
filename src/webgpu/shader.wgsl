@@ -68,6 +68,37 @@ fn initRng(pixel:vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
   return jenkinsHash(seed);
 }
 
+
+
+// returns a random vec3 in the range [0, 1]^3
+fn random_vec3(rng_state: ptr<function, u32>) -> vec3<f32> {
+  return vec3<f32>(rngNextFloat(rng_state), rngNextFloat(rng_state), rngNextFloat(rng_state));
+}
+
+// returns a random vec3 with length 1
+fn random_unit_vector(rng_state: ptr<function, u32>) -> vec3<f32> {
+  var v = random_vec3(rng_state) * 2.0 - 1.0; // random vec3 in the range [-1, 1]^3
+  while (true) {
+    let len = length(v);
+    if (len > 0.0 && len <= 1.0) {
+      break;
+    }
+    v = random_vec3(rng_state) * 2.0 - 1.0;
+  }
+
+  return normalize(v);
+}
+
+fn random_on_hemisphere(rng_state: ptr<function, u32>, normal: vec3<f32>) -> vec3<f32> {
+  let on_unit_sphere = random_unit_vector(rng_state);
+  if (dot(on_unit_sphere, normal) > 0.0) {
+    // on the same hemisphere as the normal
+    return on_unit_sphere;
+  }
+  return -on_unit_sphere;
+}
+
+
 fn degrees_to_radians(degrees: f32) -> f32 {
   return degrees * (PI / 180.0);
 }
@@ -180,18 +211,28 @@ fn hit_spheres(ray: Ray, ray_t: Interval) -> HitRecord {
   return temp_rec;
 }
 
-fn ray_color(ray: Ray) -> vec3<f32> {
-  let rec = hit_spheres(ray, interval_ahead());
-  if (rec.t > 0.0) {
-    let N = rec.normal;
-    return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
+fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
+  var bounces_left = 10u;
+  var new_ray = Ray(ray.origin, ray.direction);
+  var ray_color = vec3<f32>(1.0);
+  while (bounces_left > 0u) {
+    let hit_rec = hit_spheres(new_ray, interval(0.001, INF));
+    if (hit_rec.t > 0.0) {
+      // bounce the ray
+      new_ray.origin = hit_rec.p; // offset to avoid self-intersection
+      new_ray.direction = random_on_hemisphere(rng_state, hit_rec.normal);
+      bounces_left = bounces_left - 1u;
+      ray_color *= 0.5;
+    } else {
+      // For now, just return a color based on the ray direction
+      let unit_direction = normalize(ray.direction);
+      let a = 0.5 * (unit_direction.y + 1.0);
+      ray_color *= mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
+      return ray_color;
+    }
   }
 
-  // Placeholder for ray tracing logic
-  // For now, just return a color based on the ray direction
-  let unit_direction = normalize(ray.direction);
-  let a = 0.5 * (unit_direction.y + 1.0);
-  return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
+  return vec3<f32>(0.0); // no color
 }
 
 // return a random point in a square
@@ -251,7 +292,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   var color = vec3<f32>(0.0);
   for (var i: u32 = 0u; i < samples; i = i + 1u) {
     let ray = get_ray(pos, &rng_state, i, samples);
-    color += ray_color(ray);
+    color += ray_color(ray, &rng_state);
   }
   color /= f32(samples);
   color = sqrt(color); // gamma correction
