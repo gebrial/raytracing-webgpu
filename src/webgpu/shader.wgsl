@@ -35,11 +35,37 @@ fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<
   return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
 }
 
-// Random function which returns a number between 0 and 1
-fn random(st: vec2<f32>) -> f32 {
-    let dot_val = dot(st, vec2<f32>(12.9898, 78.233));
-    let sin_val = sin(dot_val);
-    return fract(sin_val * 43758.5453123);
+// rng functions source: https://nelari.us/post/weekend_raytracing_with_wgpu_1/
+// returns a random u32 and modifies the state
+fn rngNextInt(state: ptr<function, u32>) -> u32 {
+  // PCG RNG
+  // Based on https://www.shadertoy.com/view/XlGcRh
+  let newState = *state * 747796405u + 2891336453u;
+  *state = newState;
+  let word = ((newState >> ((newState >> 28u) + 4u)) ^ newState) * 277803737u;
+  return (word >> 22u) ^ word;
+}
+
+// returns a random float between 0 and 1 and modifies the state
+fn rngNextFloat(state: ptr<function, u32>) -> f32 {
+  let x = rngNextInt(state); // this modifies the state
+  return f32(*state) / f32(0xffffffffu);
+}
+
+fn jenkinsHash(input: u32) -> u32 {
+  var x = input;
+  x += x << 10u;
+  x ^= x >> 6u;
+  x += x << 3u;
+  x ^= x >> 11u;
+  x += x << 15u;
+  return x;
+}
+
+fn initRng(pixel:vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
+  // Adapted from https://github.com/boksajak/referencePT
+  let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkinsHash(frame);
+  return jenkinsHash(seed);
 }
 
 fn degrees_to_radians(degrees: f32) -> f32 {
