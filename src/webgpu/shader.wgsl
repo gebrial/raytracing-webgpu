@@ -202,7 +202,14 @@ fn sample_square(rng_state: ptr<function, u32>) -> vec2<f32> {
   return vec2<f32>(x, y);
 }
 
-fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>) -> Ray {
+fn sample_square_stratified(rng_state: ptr<function, u32>, sample_index: u32, total_samples: u32) -> vec2<f32> {
+  let total_samples_sqrt = sqrt(f32(total_samples));
+  let x = f32(sample_index % u32(total_samples_sqrt)) / total_samples_sqrt + rngNextFloat(rng_state) / total_samples_sqrt;
+  let y = f32(sample_index / u32(total_samples_sqrt)) / total_samples_sqrt + rngNextFloat(rng_state) / total_samples_sqrt;
+  return vec2<f32>(x - 0.5, y - 0.5);
+}
+
+fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>, sample_index: u32, total_samples: u32) -> Ray {
   let aspect_ratio = uCanvas.size.x / uCanvas.size.y;
   let uv = pos.xy / uCanvas.size;
 
@@ -224,7 +231,7 @@ fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>) -> Ray {
   let viewport_upper_left = camera_center - vec3<f32>(0, 0, focal_length) - (viewport_u / 2.0) - (viewport_v / 2.0);
   let pixel00_loc = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
-  let jiggle = sample_square(rng_state);
+  let jiggle = sample_square_stratified(rng_state, sample_index, total_samples);
   let pixel_center = pixel00_loc + ((pos.x + jiggle.x) * pixel_delta_u) + ((pos.y + jiggle.y) * pixel_delta_v);
   let ray_direction = pixel_center - camera_center;
 
@@ -239,10 +246,11 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   var rng_state: u32 = initRng(pixel, resolution, frame);
 
   // average over multiple samples
-  let samples = 100u;
+  let samples_sqrt = 10u;
+  let samples = samples_sqrt * samples_sqrt;
   var color = vec3<f32>(0.0);
   for (var i: u32 = 0u; i < samples; i = i + 1u) {
-    let ray = get_ray(pos, &rng_state);
+    let ray = get_ray(pos, &rng_state, i, samples);
     var tmp_color = ray_color(ray);
     tmp_color.x = clamp(tmp_color.x, 0.0, 1.0);
     tmp_color.y = clamp(tmp_color.y, 0.0, 1.0);
