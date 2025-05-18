@@ -54,6 +54,10 @@ struct Sphere {
   radius: f32,
 };
 
+// Storage buffer for spheres
+@group(0) @binding(3) var<storage, read> spheres: array<Sphere>;
+@group(0) @binding(4) var<uniform> uNumSpheres: u32;
+
 fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
   let oc = sphere.center - ray.origin;
   let a = dot(ray.direction, ray.direction);
@@ -66,6 +70,7 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_rec
 
   let sqrtd = sqrt(discriminant);
 
+  // Find the nearest root in the range [ray_tmin, ray_tmax]
   var root = (h - sqrtd) / a;
   if (root <= ray_tmin || ray_tmax<= root) {
     root = (h + sqrtd) / a;
@@ -77,14 +82,29 @@ fn hit_sphere(sphere: Sphere, ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_rec
   var rec = hit_record(0.0, vec3<f32>(0.0), vec3<f32>(0.0));
   rec.t = root;
   rec.p = ray.origin + root * ray.direction;
-  rec.normal = (rec.p - sphere.center) / sphere.radius; // length 1 vector
+  rec.normal = (rec.p - sphere.center) / sphere.radius; // length 1 vector facing outwards
   return rec;
 }
 
+// Returns the closest hit among all spheres
+fn hit_spheres(ray: Ray, ray_tmin: f32, ray_tmax: f32) -> hit_record {
+  var closest_so_far = ray_tmax;
+  var temp_rec = hit_record(-1.0, vec3<f32>(0.0), vec3<f32>(0.0));
+  for (var i: u32 = 0u; i < uNumSpheres; i = i + 1u) {
+    let rec = hit_sphere(spheres[i], ray, ray_tmin, closest_so_far);
+    if (rec.t > 0.0 && rec.t < closest_so_far) {
+      closest_so_far = rec.t;
+      temp_rec = rec;
+    }
+  }
+  
+  return temp_rec;
+}
+
 fn ray_color(ray: Ray) -> vec3<f32> {
-  let rec = hit_sphere(Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5), ray, 0.0, 100.0);
+  let rec = hit_spheres(ray, 0.0, 100.0);
   if (rec.t > 0.0) {
-    let N = rec.normal ;
+    let N = rec.normal;
     return 0.5 * vec3<f32>(N.x + 1.0, N.y + 1.0, N.z + 1.0); // Color based on normal
   }
 

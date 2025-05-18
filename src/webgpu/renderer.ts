@@ -44,7 +44,30 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
 
-  // Update bind group layout and bind group to include frame/time
+  // --- Spheres setup ---
+  // Each sphere: vec3 center (3 floats), f32 radius (1 float) = 16 bytes per sphere
+  // Example: two spheres
+  const spheres = [
+    // Sphere 1
+    0.0, 0.0, -1.0, 0.5, // center x, y, z, radius
+    // Sphere 2
+    0, -100.5, -1.0, 100.0, // center x, y, z, radius
+  ];
+  const numSpheres = spheres.length / 4;
+  const spheresBuffer = device.createBuffer({
+    size: spheres.length * 4, // 4 bytes per float
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(spheresBuffer, 0, new Float32Array(spheres));
+
+  // Uniform buffer for number of spheres (u32, padded to 4 bytes)
+  const numSpheresBuffer = device.createBuffer({
+    size: 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([numSpheres]));
+
+  // Update bind group layout and bind group to include spheres and count
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -60,6 +83,16 @@ export async function render(device: any, context: any) {
       {
         binding: 2,
         visibility: 2, // GPUShaderStage.FRAGMENT = 2
+        buffer: { type: 'uniform' },
+      },
+      {
+        binding: 3,
+        visibility: 2, // GPUShaderStage.FRAGMENT
+        buffer: { type: 'read-only-storage' },
+      },
+      {
+        binding: 4,
+        visibility: 2, // GPUShaderStage.FRAGMENT
         buffer: { type: 'uniform' },
       },
     ],
@@ -78,6 +111,14 @@ export async function render(device: any, context: any) {
       {
         binding: 2,
         resource: { buffer: frameTimeBuffer },
+      },
+      {
+        binding: 3,
+        resource: { buffer: spheresBuffer },
+      },
+      {
+        binding: 4,
+        resource: { buffer: numSpheresBuffer },
       },
     ],
   });
