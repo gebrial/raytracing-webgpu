@@ -251,13 +251,10 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   var color = vec3<f32>(0.0);
   for (var i: u32 = 0u; i < samples; i = i + 1u) {
     let ray = get_ray(pos, &rng_state, i, samples);
-    var tmp_color = ray_color(ray);
-    tmp_color.x = clamp(tmp_color.x, 0.0, 1.0);
-    tmp_color.y = clamp(tmp_color.y, 0.0, 1.0);
-    tmp_color.z = clamp(tmp_color.z, 0.0, 1.0);
-    color += tmp_color;
+    color += ray_color(ray);
   }
   color /= f32(samples);
   color = sqrt(color); // gamma correction
+  color = clamp(color, vec3(0.0), vec3(1.0));
   return vec4<f32>(color, 1.0);
 }
