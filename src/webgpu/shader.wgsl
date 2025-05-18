@@ -225,7 +225,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
       ray_color *= 0.5;
     } else {
       // For now, just return a color based on the ray direction
-      let unit_direction = normalize(ray.direction);
+      let unit_direction = normalize(new_ray.direction);
       let a = 0.5 * (unit_direction.y + 1.0);
       ray_color *= mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
       return ray_color;
