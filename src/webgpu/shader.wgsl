@@ -108,7 +108,9 @@ struct Material {
   color: vec4<f32>,
   diffuse: f32,
   specular: f32,
+  // refraction chance = 1 - diffuse - specular
   fuzz: f32,
+  refractionIndex: f32,
 };
 
 
@@ -159,7 +161,7 @@ struct HitRecord {
 };
 
 fn default_hit_record() -> HitRecord {
-  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0, 0.0));
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0, 0.0, 1.0));
 }
 
 struct Sphere {
@@ -230,12 +232,23 @@ fn scatter_ray(normal: vec3<f32>, rng_state: ptr<function, u32>) -> vec3<f32> {
   return normalize(scatter_direction);
 }
 
+// refractive_index_ratio is eta' / eta
+// eta' is the refractive index of the medium the ray is entering
+// eta is the refractive index of the medium the ray is leaving
+fn refract_ray(ray: Ray, normal: vec3<f32>, refractive_index_ratio: f32) -> vec3<f32> {
+  let cos_theta = min(dot(-ray.direction, normal), 1.0);
+  let r_out_perp = refractive_index_ratio * (ray.direction + cos_theta * normal);
+  let r_out_parallel = -sqrt(abs(1.0 - dot(r_out_perp, r_out_perp))) * normal;
+  return r_out_perp + r_out_parallel;
+}
+
 fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
   var bounces_left = 10u;
   var new_ray = Ray(ray.origin, ray.direction);
   var ray_color = vec3<f32>(1.0);
   while (bounces_left > 0u) {
-    let hit_rec = hit_spheres(new_ray, Interval(0.001, INF));  // offset in interval to avoid self-intersection
+    new_ray.direction = normalize(new_ray.direction);
+    var hit_rec = hit_spheres(new_ray, Interval(0.001, INF));  // offset in interval to avoid self-intersection
     if (hit_rec.t > 0.0) {
       bounces_left = bounces_left - 1u;
 
@@ -250,9 +263,18 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
         if (dot(new_ray.direction, hit_rec.normal) <= 0.0) {
           return vec3<f32>(0.0); // ray is inside the sphere, return black
         }
-      } else {
+      } else if (random_num > 1.0 - hit_rec.material.diffuse) {
         // diffuse reflection
         new_ray.direction = scatter_ray(hit_rec.normal, rng_state);
+      } else {
+        // refraction
+        var refractive_index_ratio = 1.0 / hit_rec.material.refractionIndex;
+        if (dot(new_ray.direction, hit_rec.normal) > 0.0) {
+          // ray is inside the sphere, use the inverse of the refractive index
+          refractive_index_ratio = 1.0 / refractive_index_ratio;
+          hit_rec.normal = -hit_rec.normal; // flip the normal
+        }
+        new_ray.direction = refract_ray(new_ray, hit_rec.normal, refractive_index_ratio);
       }
 
       ray_color *= hit_rec.material.color.xyz;
