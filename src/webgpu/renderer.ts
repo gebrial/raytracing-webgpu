@@ -2,19 +2,23 @@
 // Basic renderer that draws a gradient using a fullscreen triangle and a simple WGSL shader
 
 import { Color } from './color';
-import { LambertianMaterial } from './material';
+import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './material';
 import { Sphere } from './sphere';
 import { Camera } from './camera';
 
 function buildSpheresArray(): Sphere[] {
-  let R = Math.cos(Math.PI / 4);
-
-  let material_left = new LambertianMaterial(new Color(0.0, 0.0, 1.0));
-  let material_right = new LambertianMaterial(new Color(1.0, 0.0, 0.0));
+  const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
+  const material_center = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
+  const material_left = new DielectricMaterial(1.50); // glass
+  const material_bubble = new DielectricMaterial(1.0 / 1.5); // air inside glass
+  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
 
   return [
-    new Sphere([-R, 0, -1], R, material_left),
-    new Sphere([R, 0, -1], R, material_right),
+    new Sphere([0.0, -100.5, -1.0], 100.0, material_ground),
+    new Sphere([0.0, 0.0, -1.2], 0.5, material_center),
+    new Sphere([-1.0, 0.0, -1.0], 0.5, material_left),
+    new Sphere([-1.0, 0.0, -1.0], 0.4, material_bubble), // air inside glass ball
+    new Sphere([1.0, 0.0, -1.0], 0.5, material_right),
   ];
 }
 
@@ -31,10 +35,10 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
 function configureAndWriteCameraToBuffer(device:any) {
   // Camera: vec3 position, vec3 rotation (each f32 = 4 bytes, 6 floats = 24 bytes)
   // WGSL std140 alignment: each vec3 is padded to 16 bytes, so total 32 bytes
-  const cameraPosition = [0, 0, 0]; // camera position
-  const cameraForward = [0, 0, 1]; // camera forward
-  const cameraUp = [0, 1, 0]; // camera up
-  const camera = new Camera(cameraPosition, cameraForward, cameraUp);
+  const lookFrom = [-2, 2, 1]; // camera position
+  const lookAt = [0, 0, -1]; // camera forward
+  const vup = [0, 1, 0]; // camera up
+  const camera = new Camera(lookFrom, lookAt, vup);
   const cameraData = new Float32Array(camera.getCamera());
   const cameraBuffer = device.createBuffer({
     size: cameraData.length * 4, // 4 bytes per float

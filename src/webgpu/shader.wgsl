@@ -13,9 +13,9 @@ struct CanvasSize {
 // todo use forward and up vectors in viewport
 // define camera position
 struct Camera {
-  position: vec3<f32>, _pad0: f32,
-  forward: vec3<f32>, _pad1: f32,
-  up: vec3<f32>, _pad2: f32,
+  look_from: vec3<f32>, _pad0: f32,
+  look_at: vec3<f32>, _pad1: f32,
+  vup: vec3<f32>, _pad2: f32,
   vfov: f32, // vertical field of view in degrees
 };
 @group(0) @binding(1) var<uniform> uCamera: Camera;
@@ -330,22 +330,29 @@ fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>, sample_index: u32, tot
   let uv = pos.xy / uCanvas.size;
 
   // camera
-  let focal_length = 1.0;
+  let camera_center = uCamera.look_from;
+
+  // viewport dimensions
+  let focal_length = length(uCamera.look_from - uCamera.look_at);
   let h = tan(uCamera.vfov / 2.0);
   let viewport_height = 2.0 * h * focal_length;
   let viewport_width = viewport_height * aspect_ratio;
-  let camera_center = uCamera.position;
+
+  // u, v, w unit basis vectors for camera coordinate frame
+  let w = normalize(uCamera.look_from - uCamera.look_at);
+  let u = normalize(cross(uCamera.vup, w));
+  let v = cross(w, u);
 
   // viewport horizontal/vertical vectors
-  let viewport_u = vec3<f32>(viewport_width, 0.0, 0.0);
-  let viewport_v = vec3<f32>(0.0, -viewport_height, 0.0);
+  let viewport_u = viewport_width * u;
+  let viewport_v = viewport_height * -v;
 
   // horizontal/vertical delta vectors between pixels, vec3
   let pixel_delta_u = viewport_u / uCanvas.size.x;
   let pixel_delta_v = viewport_v / uCanvas.size.y;
 
   // location of upper left pixel
-  let viewport_upper_left = camera_center - vec3<f32>(0, 0, focal_length) - (viewport_u / 2.0) - (viewport_v / 2.0);
+  let viewport_upper_left = camera_center - focal_length * w - (viewport_u / 2.0) - (viewport_v / 2.0);
   let pixel00_loc = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
   let jiggle = sample_square_stratified(rng_state, sample_index, total_samples);
