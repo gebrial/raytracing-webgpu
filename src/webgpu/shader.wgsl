@@ -13,9 +13,10 @@ struct CanvasSize {
 // todo use forward and up vectors in viewport
 // define camera position
 struct Camera {
-  position: vec3<f32>,
-  forward: vec3<f32>,
-  up: vec3<f32>,
+  position: vec3<f32>, _pad0: f32,
+  forward: vec3<f32>, _pad1: f32,
+  up: vec3<f32>, _pad2: f32,
+  vfov: f32, // vertical field of view in degrees
 };
 @group(0) @binding(1) var<uniform> uCamera: Camera;
 
@@ -330,7 +331,8 @@ fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>, sample_index: u32, tot
 
   // camera
   let focal_length = 1.0;
-  let viewport_height = 2.0;
+  let h = tan(uCamera.vfov / 2.0);
+  let viewport_height = 2.0 * h * focal_length;
   let viewport_width = viewport_height * aspect_ratio;
   let camera_center = uCamera.position;
 
