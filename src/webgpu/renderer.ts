@@ -92,22 +92,33 @@ class Sphere {
   }
 }
 
-// Types are inferred from the browser, so no need to import from 'webgpu-types'.
-export async function render(device: any, context: any) {
-  // Load WGSL shader from external file
-  const shaderCode = await fetch('/src/webgpu/shader.wgsl').then(res => res.text());
-  const shaderModule = device.createShaderModule({ code: shaderCode });
+function buildSpheresArray(): Sphere[] {
+  const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
+  const material_center = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
+  const material_left = new DielectricMaterial(1.50); // glass
+  const material_bubble = new DielectricMaterial(1.0 / 1.5); // air inside glass
+  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
 
-  // Create uniform buffer for canvas size
-  const canvas = context.canvas as HTMLCanvasElement;
-  const canvasSize = new Float32Array([canvas.width, canvas.height]);
-  const uniformBuffer = device.createBuffer({
-    size: 8, // 2 floats (4 bytes each)
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  return [
+    new Sphere([0.0, -100.5, -1.0], 100.0, material_ground),
+    new Sphere([0.0, 0.0, -1.2], 0.5, material_center),
+    new Sphere([-1.0, 0.0, -1.0], 0.5, material_left),
+    new Sphere([-1.0, 0.0, -1.0], 0.4, material_bubble), // air inside glass ball
+    new Sphere([1.0, 0.0, -1.0], 0.5, material_right),
+  ];
+}
+
+function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
+  const sphereData = spheres.flatMap(sphere => sphere.getSphere());
+  const sphereBuffer = device.createBuffer({
+    size: sphereData.length * 4, // 4 bytes per float
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(uniformBuffer, 0, canvasSize.buffer, canvasSize.byteOffset, canvasSize.byteLength);
+  device.queue.writeBuffer(sphereBuffer, 0, new Float32Array(sphereData));
+  return sphereBuffer;
+}
 
-  // Create uniform buffer for camera (position + rotation)
+function configureAndWriteCameraToBuffer(device:any) {
   // Camera: vec3 position, vec3 rotation (each f32 = 4 bytes, 6 floats = 24 bytes)
   // WGSL std140 alignment: each vec3 is padded to 16 bytes, so total 32 bytes
   const cameraPosition = [0, 0, 0]; // camera position
@@ -123,6 +134,25 @@ export async function render(device: any, context: any) {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
+  return cameraBuffer;
+}
+
+// Types are inferred from the browser, so no need to import from 'webgpu-types'.
+export async function render(device: any, context: any) {
+  // Load WGSL shader from external file
+  const shaderCode = await fetch('/src/webgpu/shader.wgsl').then(res => res.text());
+  const shaderModule = device.createShaderModule({ code: shaderCode });
+
+  // Create uniform buffer for canvas size
+  const canvas = context.canvas as HTMLCanvasElement;
+  const canvasSize = new Float32Array([canvas.width, canvas.height]);
+  const uniformBuffer = device.createBuffer({
+    size: 8, // 2 floats (4 bytes each)
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(uniformBuffer, 0, canvasSize.buffer, canvasSize.byteOffset, canvasSize.byteLength);
+
+  const cameraBuffer = configureAndWriteCameraToBuffer(device);
 
   // Create uniform buffer for frame/time
   // FrameTime: u32 frame, f32 time (4 + 4 = 8 bytes, but std140 alignment pads to 16 bytes)
@@ -135,41 +165,17 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
 
-  const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
-  const material_center  = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
-  const material_left = new DielectricMaterial(1.50); // glass
-  const material_bubble = new DielectricMaterial(1.0/1.5); // air inside glass
-  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
-
-  const sphere_ground = new Sphere([0.0, -100.5, -1.0], 100.0, material_ground);
-  const sphere_center = new Sphere([0.0, 0.0, -1.2], 0.5, material_center);
-  const sphere_left = new Sphere([-1.0, 0.0, -1.0], 0.5, material_left);
-  const sphere_bubble = new Sphere([-1.0, 0.0, -1.0], 0.4, material_bubble); // air inside glass ball
-  const sphere_right = new Sphere([1.0, 0.0, -1.0], 0.5, material_right);
   // --- Spheres setup ---
   // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
   // Example: two spheres with materials
-  const spheres = [
-    ...sphere_ground.getSphere(),
-    ...sphere_center.getSphere(),
-    ...sphere_left.getSphere(),
-    ...sphere_bubble.getSphere(),
-    ...sphere_right.getSphere(),
-  ];
-  const floatsPerSphere = 12;
-  const numSpheres = spheres.length / floatsPerSphere;
-  const spheresBuffer = device.createBuffer({
-    size: spheres.length * 4, // 4 bytes per float
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(spheresBuffer, 0, new Float32Array(spheres));
-
+  const spheres = buildSpheresArray();
+  const spheresBuffer = writeSpheresToBuffer(device, spheres);
   // Uniform buffer for number of spheres (u32, padded to 4 bytes)
   const numSpheresBuffer = device.createBuffer({
     size: 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([numSpheres]));
+  device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheres.length]));
 
   // Update bind group layout and bind group to include spheres and count
   const bindGroupLayout = device.createBindGroupLayout({
