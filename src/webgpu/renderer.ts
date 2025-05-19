@@ -1,96 +1,9 @@
 // src/webgpu/renderer.ts
 // Basic renderer that draws a gradient using a fullscreen triangle and a simple WGSL shader
 
-class Color {
-  private r: number;
-  private g: number;
-  private b: number;
-  private a: number;
-
-  constructor(r: number, g: number, b: number, a: number = 1.0) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-
-  getColor(): number[] {
-    return [this.r, this.g, this.b, this.a];
-  }
-  setColor(r: number, g: number, b: number, a: number = 1.0) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-}
-
-class Material {
-  protected color: Color;
-  protected diffuse: number;
-  protected specular: number;
-  protected fuzz: number = 0.0;
-  protected refractionIndex: number = 1.0;
-
-  constructor(color: Color, diffuse: number, specular: number, fuzz: number = 0.0, refractionIndex: number = 1.0) {
-    this.color = color;
-    this.diffuse = diffuse;
-    this.specular = specular;
-    // refraction chance = 1 - diffuse - specular
-    this.fuzz = fuzz;
-    this.refractionIndex = refractionIndex;
-  }
-
-  getMaterial(): number[] {
-    return [
-      ...this.color.getColor(),
-      this.diffuse,
-      this.specular,
-      this.fuzz,
-      this.refractionIndex,
-    ];
-  }
-}
-
-class LambertianMaterial extends Material {
-  constructor(color: Color) {
-    const diffuse = 1.0; // Lambertian materials have a diffuse value of 1.0
-    super(color, diffuse, 1.0 - diffuse);
-  }
-}
-
-class MetalMaterial extends Material {
-  constructor(color: Color, fuzz: number) {
-    const diffuse = 0.0; // Metal materials have a diffuse value of 0.0
-    super(color, diffuse, 1.0 - diffuse, fuzz);
-  }
-}
-
-class DielectricMaterial extends Material {
-  constructor(refractionIndex: number) {
-    super(new Color(1.0, 1.0, 1.0), 0.0, 0.0, 0.0, refractionIndex);
-  }
-}
-
-class Sphere {
-  private center: number[];
-  private radius: number;
-  private material: Material;
-
-  constructor(center: number[], radius: number, material: Material) {
-    this.center = center;
-    this.radius = radius;
-    this.material = material;
-  }
-
-  getSphere(): number[] {
-    return [
-      ...this.center,
-      this.radius,
-      ...this.material.getMaterial(),
-    ];
-  }
-}
+import { Color } from './color';
+import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './material';
+import { Sphere } from './sphere';
 
 function buildSpheresArray(): Sphere[] {
   const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
@@ -276,10 +189,10 @@ export async function render(device: any, context: any) {
     renderPass.end();
     device.queue.submit([encoder.finish()]);
 
-    // animationFrameId = requestAnimationFrame(frameLoop);
+    animationFrameId = requestAnimationFrame(frameLoop);
   }
   frameLoop();
 
   // Return a cleanup function
-  // return () => cancelAnimationFrame(animationFrameId);
+  return () => cancelAnimationFrame(animationFrameId);
 }

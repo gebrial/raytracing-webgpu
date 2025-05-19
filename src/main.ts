@@ -31,6 +31,7 @@ import('./webgpu/init').then(async ({ initWebGPU }) => {
   let cleanup: (() => void) | undefined;
   cleanup = await render(device, context);
   // Optionally handle cleanup on hot reload or navigation
+  cleanup?.();
 }).catch(err => {
   app.innerHTML = `<p style="color:red;">${err.message}</p>`;
 });
