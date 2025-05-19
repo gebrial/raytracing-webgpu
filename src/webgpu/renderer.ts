@@ -4,6 +4,7 @@
 import { Color } from './color';
 import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './material';
 import { Sphere } from './sphere';
+import { Camera } from './camera';
 
 function buildSpheresArray(): Sphere[] {
   const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
@@ -35,15 +36,12 @@ function configureAndWriteCameraToBuffer(device:any) {
   // Camera: vec3 position, vec3 rotation (each f32 = 4 bytes, 6 floats = 24 bytes)
   // WGSL std140 alignment: each vec3 is padded to 16 bytes, so total 32 bytes
   const cameraPosition = [0, 0, 0]; // camera position
-  const cameraForward = [0, 0, 1]; // camera rotation
-  const cameraUp = [0, 1, 0]; // camera forward
-  const cameraData = new Float32Array([
-    ...cameraPosition, 0, // pad to 4 floats
-    ...cameraForward, 0, // pad to 4 floats
-    ...cameraUp, 0, // pad to 4 floats
-  ]);
+  const cameraForward = [0, 0, 1]; // camera forward
+  const cameraUp = [0, 1, 0]; // camera up
+  const camera = new Camera(cameraPosition, cameraForward, cameraUp);
+  const cameraData = new Float32Array(camera.getCamera());
   const cameraBuffer = device.createBuffer({
-    size: 48, // 2 vec4s (16 bytes each)
+    size: cameraData.length * 4, // 4 bytes per float
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
