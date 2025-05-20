@@ -12,6 +12,7 @@ const numSamplesSqrt = 1; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
 const ACCUMULATE_COLOR = false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
+// todo investigate bug where accumulation of ~5000 frames causes very dark shadows
 
 
 function buildFinalSceneSpheresArray(): Sphere[] {

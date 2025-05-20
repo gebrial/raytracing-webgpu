@@ -395,6 +395,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   let resolution = vec2<u32>(u32(uCanvas.size.x), u32(uCanvas.size.y));
   let frame = u32(uFrameTime.frame);
   var rng_state: u32 = initRng(pixel, resolution, frame);
+  // todo: use seed from javascript code
 
   // average over multiple samples
   let samples_sqrt = uRenderSettings.num_samples_sqrt;
@@ -405,18 +406,23 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     color += ray_color(ray, &rng_state);
   }
   color /= f32(samples);
-  color = sqrt(color); // gamma correction
   color = clamp(color, vec3(0.0), vec3(1.0));
 
   if (uRenderSettings.accumulate_color == 0u) {
     // No color accumulation
+    color = sqrt(color); // gamma correction
     return vec4<f32>(color, 1.0);
   }
 
+
+  // todo instead of using a texture, use a buffer
+  // and save the total color accumulated instead of the averaged color
   // Sample previous frame
   let uv = pos.xy / uCanvas.size;
-  let prevColor = textureSample(previousFrame, previousFrameSampler, uv).xyz;
+  var prevColor = textureSample(previousFrame, previousFrameSampler, uv).xyz;
+  prevColor = prevColor * prevColor; // undo gamma correction
   // Blend: accumulate new color with previous
-  let outColor = mix(prevColor, color, 1.0 / f32(frame + 1));
+  var outColor = mix(prevColor, color, 1.0 / f32(frame + 1));
+  outColor = sqrt(outColor); // gamma correction
   return vec4<f32>(outColor, 1.0);
 }
