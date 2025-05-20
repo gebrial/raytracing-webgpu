@@ -33,6 +33,9 @@ struct RenderSettings {
 };
 @group(0) @binding(5) var<uniform> uRenderSettings: RenderSettings;
 
+@group(0) @binding(6) var previousFrame: texture_2d<f32>;
+@group(0) @binding(7) var previousFrameSampler: sampler;
+
 @vertex
 fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
@@ -403,5 +406,11 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   color /= f32(samples);
   color = sqrt(color); // gamma correction
   color = clamp(color, vec3(0.0), vec3(1.0));
-  return vec4<f32>(color, 1.0);
+
+  // Sample previous frame
+  let uv = pos.xy / uCanvas.size;
+  let prevColor = textureSample(previousFrame, previousFrameSampler, uv).xyz;
+  // Blend: accumulate new color with previous
+  let outColor = mix(prevColor, color, 1.0 / f32(frame + 1));
+  return vec4<f32>(outColor, 1.0);
 }

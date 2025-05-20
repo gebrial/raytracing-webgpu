@@ -131,7 +131,7 @@ export async function render(device: any, context: any) {
 
   // --- RenderSettings uniform buffer ---
   // struct RenderSettings { num_samples: u32, num_bounces: u32 }
-  const numSamplesSqrt = 5; // You can set this to any value you want
+  const numSamplesSqrt = 1; // You can set this to any value you want
   const numBounces = 10; // You can set this to any value you want
   const renderSettingsData = new Uint32Array([numSamplesSqrt, numBounces]);
   const renderSettingsBuffer = device.createBuffer({
@@ -140,7 +140,20 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
 
-  // Update bind group layout and bind group to include spheres, count, and render settings
+  // --- Accumulation textures and sampler setup ---
+  // Create two textures for ping-pong accumulation
+  const textureDesc = {
+    size: [canvas.width, canvas.height, 1],
+    format: 'rgba16float',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST,
+  };
+  const accumTextureA = device.createTexture(textureDesc);
+  const accumTextureB = device.createTexture(textureDesc);
+  let ping = accumTextureA;
+  let pong = accumTextureB;
+  const accumSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
+
+  // Update bind group layout and bind group to include previous frame texture and sampler
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -173,34 +186,15 @@ export async function render(device: any, context: any) {
         visibility: 2, // GPUShaderStage.FRAGMENT
         buffer: { type: 'uniform' },
       },
-    ],
-  });
-  const bindGroup = device.createBindGroup({
-    layout: bindGroupLayout,
-    entries: [
       {
-        binding: 0,
-        resource: { buffer: uniformBuffer },
+        binding: 6,
+        visibility: 2, // GPUShaderStage.FRAGMENT
+        texture: { sampleType: 'unfilterable-float' },
       },
       {
-        binding: 1,
-        resource: { buffer: cameraBuffer },
-      },
-      {
-        binding: 2,
-        resource: { buffer: frameTimeBuffer },
-      },
-      {
-        binding: 3,
-        resource: { buffer: spheresBuffer },
-      },
-      {
-        binding: 4,
-        resource: { buffer: numSpheresBuffer },
-      },
-      {
-        binding: 5,
-        resource: { buffer: renderSettingsBuffer },
+        binding: 7,
+        visibility: 2, // GPUShaderStage.FRAGMENT
+        sampler: { type: 'non-filtering' },
       },
     ],
   });
@@ -208,6 +202,35 @@ export async function render(device: any, context: any) {
   // Animation loop to update frame/time and render
   let startTime = performance.now();
   let animationFrameId: number;
+
+  // Create two pipelines: one for accumulation (rgba16float), one for blitting (canvas format)
+  const accumPipeline = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+    vertex: {
+      module: shaderModule,
+      entryPoint: 'vs_main',
+    },
+    fragment: {
+      module: shaderModule,
+      entryPoint: 'fs_main',
+      targets: [{ format: 'rgba16float' }],
+    },
+    primitive: { topology: 'triangle-list' },
+  });
+  const blitPipeline = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+    vertex: {
+      module: shaderModule,
+      entryPoint: 'vs_main',
+    },
+    fragment: {
+      module: shaderModule,
+      entryPoint: 'fs_main',
+      targets: [{ format: context.getCurrentTexture().format || 'bgra8unorm' }],
+    },
+    primitive: { topology: 'triangle-list' },
+  });
+
   function frameLoop() {
     const now = performance.now();
     frame += 1;
@@ -216,39 +239,59 @@ export async function render(device: any, context: any) {
     frameTimeData[1] = time;
     device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
 
-    const pipeline = device.createRenderPipeline({
-      layout: device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
-      vertex: {
-        module: shaderModule,
-        entryPoint: 'vs_main',
-      },
-      fragment: {
-        module: shaderModule,
-        entryPoint: 'fs_main',
-        targets: [{ format: context.getCurrentTexture().format || 'bgra8unorm' }],
-      },
-      primitive: { topology: 'triangle-list' },
+    // Re-create bindGroup with the current ping as previous frame texture
+    const dynamicBindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        { binding: 0, resource: { buffer: uniformBuffer } },
+        { binding: 1, resource: { buffer: cameraBuffer } },
+        { binding: 2, resource: { buffer: frameTimeBuffer } },
+        { binding: 3, resource: { buffer: spheresBuffer } },
+        { binding: 4, resource: { buffer: numSpheresBuffer } },
+        { binding: 5, resource: { buffer: renderSettingsBuffer } },
+        { binding: 6, resource: ping.createView() },
+        { binding: 7, resource: accumSampler },
+      ],
     });
 
+    // Render to pong (accumulation texture)
     const encoder = device.createCommandEncoder();
-    const textureView = context.getCurrentTexture().createView();
     const renderPass = encoder.beginRenderPass({
       colorAttachments: [
         {
-          view: textureView,
+          view: pong.createView(),
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: 'clear',
+          loadOp: frame === 1 ? 'clear' : 'load',
           storeOp: 'store',
         },
       ],
     });
-    renderPass.setPipeline(pipeline);
-    renderPass.setBindGroup(0, bindGroup);
-    renderPass.draw(3, 1, 0, 0); // fullscreen triangle
+    renderPass.setPipeline(accumPipeline);
+    renderPass.setBindGroup(0, dynamicBindGroup);
+    renderPass.draw(3, 1, 0, 0);
     renderPass.end();
+    // Copy/blit pong to the canvas
+    const textureView = context.getCurrentTexture().createView();
+    const blitPass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: textureView,
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        },
+      ],
+    });
+    blitPass.setPipeline(blitPipeline);
+    blitPass.setBindGroup(0, dynamicBindGroup);
+    blitPass.draw(3, 1, 0, 0);
+    blitPass.end();
     device.queue.submit([encoder.finish()]);
-
-    animationFrameId = requestAnimationFrame(frameLoop);
+    // Wait for GPU to finish before next frame
+    device.queue.onSubmittedWorkDone().then(() => {
+      [ping, pong] = [pong, ping];
+      animationFrameId = requestAnimationFrame(frameLoop);
+    });
   }
   frameLoop();
 
