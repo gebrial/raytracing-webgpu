@@ -1,5 +1,9 @@
 // Vertex and fragment entry points for WGSL shaders
 
+struct AccumBuffer {
+  data: array<vec3<f32>>,
+}
+
 @vertex
 fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
@@ -35,15 +39,12 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     return vec4<f32>(color, 1.0);
   }
 
-
-  // todo instead of using a texture, use a buffer
-  // and save the total color accumulated instead of the averaged color
-  // Sample previous frame
-  let uv = pos.xy / uCanvas.size;
-  var prevColor = textureSample(previousFrame, previousFrameSampler, uv).xyz;
-  prevColor = prevColor * prevColor; // undo gamma correction
-  // Blend: accumulate new color with previous
-  var outColor = mix(prevColor, color, 1.0 / f32(frame + 1));
-  outColor = sqrt(outColor); // gamma correction
+  // Accumulate color in buffer
+  let idx = u32(pos.y) * u32(uCanvas.size.x) + u32(pos.x);
+  let prevColor = accumBuffer.data[idx];
+  let totalColor = prevColor + color;
+  accumBuffer.data[idx] = totalColor;
+  // Output normalized and gamma-corrected color
+  let outColor = sqrt(totalColor / f32(frame + 1));
   return vec4<f32>(outColor, 1.0);
 }

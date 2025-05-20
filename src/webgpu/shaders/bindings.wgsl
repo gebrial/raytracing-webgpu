@@ -4,5 +4,4 @@
 @group(0) @binding(3) var<storage, read> spheres: array<Sphere>;
 @group(0) @binding(4) var<uniform> uNumSpheres: u32;
 @group(0) @binding(5) var<uniform> uRenderSettings: RenderSettings;
-@group(0) @binding(6) var previousFrame: texture_2d<f32>;
-@group(0) @binding(7) var previousFrameSampler: sampler;
+@group(0) @binding(6) var<storage, read_write> accumBuffer: AccumBuffer;
