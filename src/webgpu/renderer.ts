@@ -6,20 +6,58 @@ import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './materia
 import { Sphere } from './sphere';
 import { Camera } from './camera';
 
-function buildSpheresArray(): Sphere[] {
-  const material_ground = new LambertianMaterial(new Color(0.8, 0.8, 0.0)); // yellow
-  const material_center = new LambertianMaterial(new Color(0.1, 0.2, 0.5)); // blue-ish
-  const material_left = new DielectricMaterial(1.50); // glass
-  const material_bubble = new DielectricMaterial(1.0 / 1.5); // air inside glass
-  const material_right = new MetalMaterial(new Color(0.8, 0.6, 0.2), 1.0); // yellow-ish
 
-  return [
-    new Sphere([0.0, -100.5, -1.0], 100.0, material_ground),
-    new Sphere([0.0, 0.0, -1.2], 0.5, material_center),
-    new Sphere([-1.0, 0.0, -1.0], 0.5, material_left),
-    new Sphere([-1.0, 0.0, -1.0], 0.4, material_bubble), // air inside glass ball
-    new Sphere([1.0, 0.0, -1.0], 0.5, material_right),
-  ];
+
+function buildFinalSceneSpheresArray(): Sphere[] {
+  const spheres: Sphere[] = [];
+
+  const groundMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
+  const groundSphere = new Sphere([0, -1000, 0], 1000, groundMaterial);
+  spheres.push(groundSphere);
+
+  for (let i = -11; i < 11; i++) {
+    for (let j = -11; j < 11; j++) {
+      const materialType = Math.floor(Math.random());
+      const center = [i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random()];
+      const nearMetalBall = [4, 0.2, 0];
+      const distance = Math.sqrt((center[0] - nearMetalBall[0]) ** 2 + (center[1] - nearMetalBall[1]) ** 2 + (center[2] - nearMetalBall[2]) ** 2);
+      if (distance < 0.9) {
+        continue; // Skip this sphere if it's too close to the metal ball
+      }
+      let material: any;
+
+      if (materialType < 0.8) {
+        // diffuse
+        material = new LambertianMaterial(new Color(Math.random() * Math.random(), Math.random() * Math.random(), Math.random() * Math.random()));
+      } else if (materialType < 0.95) {
+        // metal
+        const albedo = new Color(Math.random()*0.5 + 0.5, Math.random()*0.5 + 0.5, Math.random()*0.5 + 0.5);
+        const fuzz = Math.random() * 0.5;
+        material = new MetalMaterial(albedo, fuzz);
+      } else {
+        material = new DielectricMaterial(1.5);
+      }
+
+      const sphere = new Sphere(center, 0.2, material);
+      spheres.push(sphere);
+    }
+  }
+
+  const material1 = new DielectricMaterial(1.5);
+  const sphere1 = new Sphere([0, 1, 0], 1, material1);
+  spheres.push(sphere1);
+  const material2 = new LambertianMaterial(new Color(0.4, 0.2, 0.1));
+  const sphere2 = new Sphere([-4, 1, 0], 1, material2);
+  spheres.push(sphere2);
+  const material3 = new MetalMaterial(new Color(0.7, 0.6, 0.5), 0.0);
+  const sphere3 = new Sphere([4, 1, 0], 1, material3);
+  spheres.push(sphere3);
+
+  return spheres;
+}
+
+function buildSpheresArray(): Sphere[] {
+  return buildFinalSceneSpheresArray();
 }
 
 function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
@@ -35,10 +73,13 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
 function configureAndWriteCameraToBuffer(device:any) {
   // Camera: vec3 position, vec3 rotation (each f32 = 4 bytes, 6 floats = 24 bytes)
   // WGSL std140 alignment: each vec3 is padded to 16 bytes, so total 32 bytes
-  const lookFrom = [-2, 2, 1]; // camera position
-  const lookAt = [0, 0, -1]; // camera forward
+  const lookFrom = [13, 2, 3]; // camera position
+  const lookAt = [0, 0, 0]; // camera forward
   const vup = [0, 1, 0]; // camera up
   const camera = new Camera(lookFrom, lookAt, vup);
+  camera.vfov = 20.0 * (Math.PI / 180.0); // vertical field of view in radians
+  camera.defocus_angle = 0.6 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
+  camera.focus_dist = 10.0; // distance from camera lookFrom point to plane of perfect focus
   const cameraData = new Float32Array(camera.getCamera());
   const cameraBuffer = device.createBuffer({
     size: cameraData.length * 4, // 4 bytes per float
@@ -88,7 +129,18 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheres.length]));
 
-  // Update bind group layout and bind group to include spheres and count
+  // --- RenderSettings uniform buffer ---
+  // struct RenderSettings { num_samples: u32, num_bounces: u32 }
+  const numSamplesSqrt = 5; // You can set this to any value you want
+  const numBounces = 10; // You can set this to any value you want
+  const renderSettingsData = new Uint32Array([numSamplesSqrt, numBounces]);
+  const renderSettingsBuffer = device.createBuffer({
+    size: 8, // 2 * 4 bytes (u32)
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
+
+  // Update bind group layout and bind group to include spheres, count, and render settings
   const bindGroupLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -116,6 +168,11 @@ export async function render(device: any, context: any) {
         visibility: 2, // GPUShaderStage.FRAGMENT
         buffer: { type: 'uniform' },
       },
+      {
+        binding: 5,
+        visibility: 2, // GPUShaderStage.FRAGMENT
+        buffer: { type: 'uniform' },
+      },
     ],
   });
   const bindGroup = device.createBindGroup({
@@ -140,6 +197,10 @@ export async function render(device: any, context: any) {
       {
         binding: 4,
         resource: { buffer: numSpheresBuffer },
+      },
+      {
+        binding: 5,
+        resource: { buffer: renderSettingsBuffer },
       },
     ],
   });

@@ -27,6 +27,12 @@ struct FrameTime {
 };
 @group(0) @binding(2) var<uniform> uFrameTime: FrameTime;
 
+struct RenderSettings {
+  num_samples_sqrt: u32,
+  num_bounces: u32,
+};
+@group(0) @binding(5) var<uniform> uRenderSettings: RenderSettings;
+
 @vertex
 fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
@@ -387,7 +393,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   var rng_state: u32 = initRng(pixel, resolution, frame);
 
   // average over multiple samples
-  let samples_sqrt = 50u;
+  let samples_sqrt = uRenderSettings.num_samples_sqrt;
   let samples = samples_sqrt * samples_sqrt;
   var color = vec3<f32>(0.0);
   for (var i: u32 = 0u; i < samples; i = i + 1u) {
