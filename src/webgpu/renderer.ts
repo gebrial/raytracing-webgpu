@@ -17,7 +17,7 @@ function buildFinalSceneSpheresArray(): Sphere[] {
 
   for (let i = -11; i < 11; i++) {
     for (let j = -11; j < 11; j++) {
-      const materialType = Math.floor(Math.random());
+      const materialType = Math.random();
       const center = [i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random()];
       const nearMetalBall = [4, 0.2, 0];
       const distance = Math.sqrt((center[0] - nearMetalBall[0]) ** 2 + (center[1] - nearMetalBall[1]) ** 2 + (center[2] - nearMetalBall[2]) ** 2);
@@ -35,6 +35,7 @@ function buildFinalSceneSpheresArray(): Sphere[] {
         const fuzz = Math.random() * 0.5;
         material = new MetalMaterial(albedo, fuzz);
       } else {
+        // glass
         material = new DielectricMaterial(1.5);
       }
 
