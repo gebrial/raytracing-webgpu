@@ -5,6 +5,7 @@ import { Color } from './color';
 import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './material';
 import { Sphere } from './sphere';
 import { Camera } from './camera';
+import { Vec3 } from './vec3';
 
 
 // constants
@@ -12,22 +13,21 @@ const numSamplesSqrt = 1; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
 const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
-// todo investigate bug where accumulation of ~5000 frames causes very dark shadows
 
 
 function buildFinalSceneSpheresArray(): Sphere[] {
   const spheres: Sphere[] = [];
 
   const groundMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
-  const groundSphere = new Sphere([0, -1000, 0], 1000, groundMaterial);
+  const groundSphere = new Sphere(new Vec3(0, -1000, 0), 1000, groundMaterial);
   spheres.push(groundSphere);
 
   for (let i = -11; i < 11; i++) {
     for (let j = -11; j < 11; j++) {
       const materialType = Math.random();
-      const center = [i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random()];
-      const nearMetalBall = [4, 0.2, 0];
-      const distance = Math.sqrt((center[0] - nearMetalBall[0]) ** 2 + (center[1] - nearMetalBall[1]) ** 2 + (center[2] - nearMetalBall[2]) ** 2);
+      const center = new Vec3(i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random());
+      const nearMetalBall = new Vec3(4, 0.2, 0);
+      const distance = Math.sqrt((center.getVec3()[0] - nearMetalBall.getVec3()[0]) ** 2 + (center.getVec3()[1] - nearMetalBall.getVec3()[1]) ** 2 + (center.getVec3()[2] - nearMetalBall.getVec3()[2]) ** 2);
       if (distance < 0.9) {
         continue; // Skip this sphere if it's too close to the metal ball
       }
@@ -52,13 +52,13 @@ function buildFinalSceneSpheresArray(): Sphere[] {
   }
 
   const material1 = new DielectricMaterial(1.5);
-  const sphere1 = new Sphere([0, 1, 0], 1, material1);
+  const sphere1 = new Sphere(new Vec3(0, 1, 0), 1, material1);
   spheres.push(sphere1);
   const material2 = new LambertianMaterial(new Color(0.4, 0.2, 0.1));
-  const sphere2 = new Sphere([-4, 1, 0], 1, material2);
+  const sphere2 = new Sphere(new Vec3(-4, 1, 0), 1, material2);
   spheres.push(sphere2);
   const material3 = new MetalMaterial(new Color(0.7, 0.6, 0.5), 0.0);
-  const sphere3 = new Sphere([4, 1, 0], 1, material3);
+  const sphere3 = new Sphere(new Vec3(4, 1, 0), 1, material3);
   spheres.push(sphere3);
 
   return spheres;
@@ -85,13 +85,13 @@ function configureCameraData(time: number = 8.45) {
   // rotate camera around origin
   const angle = (time / 40) * Math.PI * 2;
   const radius = Math.sqrt(13 * 13 + 3 * 3);
-  const lookFrom = [
+  const lookFrom = new Vec3(
     radius * Math.sin(angle),
     2,
     radius * Math.cos(angle),
-  ];
-  const lookAt = [0, 0, 0];
-  const vup = [0, 1, 0];
+  );
+  const lookAt = new Vec3(0, 0, 0);
+  const vup = new Vec3(0, 1, 0);
   const camera = new Camera(lookFrom, lookAt, vup);
   camera.vfov = 20.0 * (Math.PI / 180.0);
   camera.defocus_angle = 0.6 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
