@@ -10,7 +10,7 @@ import { Camera } from './camera';
 // constants
 const numSamplesSqrt = 1; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
-const ACCUMULATE_COLOR = false; // Set to true if you want to accumulate color over frames or false for a video
+const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 // todo investigate bug where accumulation of ~5000 frames causes very dark shadows
 
@@ -101,8 +101,19 @@ function configureCameraData(time: number = 8.45) {
 
 // Types are inferred from the browser, so no need to import from 'webgpu-types'.
 export async function render(device: any, context: any) {
-  // Load WGSL shader from external file
-  const shaderCode = await fetch('/src/webgpu/shader.wgsl').then(res => res.text());
+  // Load WGSL shader from multiple modules and concatenate in the correct order
+  const shaderFiles = [
+    '/src/webgpu/shaders/common.wgsl',
+    '/src/webgpu/shaders/interval.wgsl',
+    '/src/webgpu/shaders/geometry.wgsl',
+    '/src/webgpu/shaders/random.wgsl',
+    '/src/webgpu/shaders/camera.wgsl',
+    '/src/webgpu/shaders/hit.wgsl',
+    '/src/webgpu/shaders/raytracing.wgsl',
+    '/src/webgpu/shaders/entry.wgsl',
+    '/src/webgpu/shaders/bindings.wgsl',
+  ];
+  const shaderCode = (await Promise.all(shaderFiles.map(f => fetch(f).then(res => res.text())))).join('\n');
   const shaderModule = device.createShaderModule({ code: shaderCode });
 
   // Create uniform buffer for canvas size
