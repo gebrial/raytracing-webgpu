@@ -2,7 +2,6 @@
 // Fullscreen triangle gradient shader
 
 const RAY_TMAX: f32 = 100000.0;
-const PI: f32 = 3.141592653589793;
 const INF: f32 = 3.402823466e+38; // Maximum finite f32 value
 
 struct CanvasSize {
@@ -17,6 +16,8 @@ struct Camera {
   look_at: vec3<f32>, _pad1: f32,
   vup: vec3<f32>, _pad2: f32,
   vfov: f32, // vertical field of view in degrees
+  defocus_angle: f32, // variation angle of rays through each pixel
+  focus_dist: f32, // distance from camera lookFrom point to plane of perfect focus
 };
 @group(0) @binding(1) var<uniform> uCamera: Camera;
 
@@ -99,9 +100,16 @@ fn random_on_hemisphere(rng_state: ptr<function, u32>, normal: vec3<f32>) -> vec
   return -on_unit_sphere;
 }
 
-
-fn degrees_to_radians(degrees: f32) -> f32 {
-  return degrees * (PI / 180.0);
+fn random_in_unit_disk(rng_state: ptr<function, u32>) -> vec3<f32> {
+  var p = vec3<f32>(0.0, 0.0, 0.0);
+  while (true) {
+    p.x = rngNextFloat(rng_state) * 2.0 - 1.0;
+    p.y = rngNextFloat(rng_state) * 2.0 - 1.0;
+    if (dot(p, p) < 1.0) {
+      break;
+    }
+  }
+  return p;
 }
 
 
@@ -333,9 +341,9 @@ fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>, sample_index: u32, tot
   let camera_center = uCamera.look_from;
 
   // viewport dimensions
-  let focal_length = length(uCamera.look_from - uCamera.look_at);
+  let focus_dist = uCamera.focus_dist;
   let h = tan(uCamera.vfov / 2.0);
-  let viewport_height = 2.0 * h * focal_length;
+  let viewport_height = 2.0 * h * focus_dist;
   let viewport_width = viewport_height * aspect_ratio;
 
   // u, v, w unit basis vectors for camera coordinate frame
@@ -352,14 +360,23 @@ fn get_ray(pos: vec4<f32>, rng_state: ptr<function, u32>, sample_index: u32, tot
   let pixel_delta_v = viewport_v / uCanvas.size.y;
 
   // location of upper left pixel
-  let viewport_upper_left = camera_center - focal_length * w - (viewport_u / 2.0) - (viewport_v / 2.0);
+  let viewport_upper_left = camera_center - (focus_dist * w) - (viewport_u / 2.0) - (viewport_v / 2.0);
   let pixel00_loc = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
-  let jiggle = sample_square_stratified(rng_state, sample_index, total_samples);
-  let pixel_center = pixel00_loc + ((pos.x + jiggle.x) * pixel_delta_u) + ((pos.y + jiggle.y) * pixel_delta_v);
-  let ray_direction = pixel_center - camera_center;
+  // camera defocus disk basis vectors
+  let defocus_radius = focus_dist * tan(uCamera.defocus_angle / 2.0);
+  let defocus_disk_u = defocus_radius * u;
+  let defocus_disk_v = defocus_radius * v;
 
-  return Ray(camera_center, ray_direction);
+  let jiggle = sample_square_stratified(rng_state, sample_index, total_samples);
+  let pixel_sample = pixel00_loc + ((pos.x + jiggle.x) * pixel_delta_u) + ((pos.y + jiggle.y) * pixel_delta_v);
+
+  let p = random_in_unit_disk(rng_state);
+  let ray_origin = camera_center + defocus_disk_u * p.x + defocus_disk_v * p.y;
+
+  let ray_direction = pixel_sample - ray_origin;
+
+  return Ray(ray_origin, ray_direction);
 }
 
 @fragment
