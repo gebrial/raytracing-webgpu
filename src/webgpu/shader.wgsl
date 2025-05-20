@@ -269,7 +269,7 @@ fn reflectance(cosine: f32, refractive_index_ratio: f32) -> f32 {
 }
 
 fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
-  var bounces_left = 10u;
+  var bounces_left = uRenderSettings.num_bounces;
   var new_ray = Ray(ray.origin, ray.direction);
   var ray_color = vec3<f32>(1.0);
   while (bounces_left > 0u) {

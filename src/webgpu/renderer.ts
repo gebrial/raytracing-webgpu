@@ -7,6 +7,11 @@ import { Sphere } from './sphere';
 import { Camera } from './camera';
 
 
+// constants
+const numSamplesSqrt = 1; // You can set this to any value you want
+const numBounces = 10; // You can set this to any value you want
+const MAX_FRAMES = 500; // Set your desired frame limit here
+
 
 function buildFinalSceneSpheresArray(): Sphere[] {
   const spheres: Sphere[] = [];
@@ -92,9 +97,6 @@ function configureAndWriteCameraToBuffer(device:any) {
 
 // Types are inferred from the browser, so no need to import from 'webgpu-types'.
 export async function render(device: any, context: any) {
-  // Define the maximum number of frames to render
-  const MAX_FRAMES = 500; // Set your desired frame limit here
-
   // Load WGSL shader from external file
   const shaderCode = await fetch('/src/webgpu/shader.wgsl').then(res => res.text());
   const shaderModule = device.createShaderModule({ code: shaderCode });
@@ -135,8 +137,6 @@ export async function render(device: any, context: any) {
 
   // --- RenderSettings uniform buffer ---
   // struct RenderSettings { num_samples: u32, num_bounces: u32 }
-  const numSamplesSqrt = 1; // You can set this to any value you want
-  const numBounces = 10; // You can set this to any value you want
   const renderSettingsData = new Uint32Array([numSamplesSqrt, numBounces]);
   const renderSettingsBuffer = device.createBuffer({
     size: 8, // 2 * 4 bytes (u32)
