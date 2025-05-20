@@ -251,11 +251,11 @@ export async function render(device: any, context: any) {
 
   function frameLoop() {
     const now = performance.now();
-    frame += 1;
     time = (now - startTime) * 0.001;
     frameTimeData[0] = frame;
     frameTimeData[1] = time;
     device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
+    frame += 1;
 
     // Update camera buffer with current time
     cameraData = configureCameraData(ACCUMULATE_COLOR ? 8.45 : time);
