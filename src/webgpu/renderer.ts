@@ -296,6 +296,12 @@ export async function render(device: any, context: any) {
       [ping, pong] = [pong, ping];
       if (frame < MAX_FRAMES) {
         animationFrameId = requestAnimationFrame(frameLoop);
+        // console log frame rate
+        if (frame % 10 === 0) {
+          const elapsedTime = (performance.now() - startTime) / 1000;
+          const fps = frame / elapsedTime;
+          console.log(`Frame: ${frame}, FPS: ${fps.toFixed(2)}`);
+        }
       }
       // If frame >= MAX_FRAMES, do not schedule another frame
     });
