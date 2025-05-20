@@ -16,4 +16,5 @@ struct RenderSettings {
   num_samples_sqrt: u32,
   num_bounces: u32,
   accumulate_color: u32,
+  random_seed: f32,
 };

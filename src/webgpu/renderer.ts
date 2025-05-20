@@ -161,7 +161,7 @@ export async function render(device: any, context: any) {
     numSamplesSqrt,
     numBounces,
     ACCUMULATE_COLOR ? 1 : 0, 
-    0 // pad to 16 bytes
+    Math.random() * (2 ** 32 - 1), // random seed
   ]);
   const renderSettingsBuffer = device.createBuffer({
     size: 16, // 4 * 4 bytes (u32)
@@ -260,6 +260,10 @@ export async function render(device: any, context: any) {
     primitive: { topology: 'triangle-list' },
   });
 
+  function randomSeed(min: number, max: number) {
+    return Math.random() * (max - min + 1) + min;
+  }
+
   function frameLoop() {
     const now = performance.now();
     time = (now - startTime) * 0.001;
@@ -271,6 +275,19 @@ export async function render(device: any, context: any) {
     // Update camera buffer with current time
     cameraData = configureCameraData(ACCUMULATE_COLOR ? 8.45 : time);
     device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
+
+    // approximate magic numbers from trial and error
+    let minRandom = 1147066390.0;
+    let maxRandom = 1312701008.0;
+    let random_seed = randomSeed(minRandom, maxRandom);
+    // update render settings buffer with new random seed
+    const renderSettingsData = new Uint32Array([
+      numSamplesSqrt,
+      numBounces,
+      ACCUMULATE_COLOR ? 1 : 0,
+      random_seed, // random seed
+    ]);
+    device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
 
     // Re-create bindGroup with the current ping as previous frame texture
     const dynamicBindGroup = device.createBindGroup({

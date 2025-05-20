@@ -82,8 +82,8 @@ fn jenkinsHash(input: u32) -> u32 {
   return x;
 }
 
-fn initRng(pixel:vec2<u32>, resolution: vec2<u32>, frame: u32) -> u32 {
+fn initRng(pixel:vec2<u32>, frame: u32, random_seed: u32) -> u32 {
   // Adapted from https://github.com/boksajak/referencePT
-  let seed = dot(pixel, vec2<u32>(1u, resolution.x)) ^ jenkinsHash(frame);
+  let seed = dot(pixel, vec2<u32>(1u, random_seed)) ^ jenkinsHash(frame);
   return jenkinsHash(seed);
 }

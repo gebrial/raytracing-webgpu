@@ -12,11 +12,11 @@ fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> @builtin(position) vec4<
 
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+  let seed = u32(uRenderSettings.random_seed);
   let pixel = vec2<u32>(u32(pos.x), u32(pos.y));
   let resolution = vec2<u32>(u32(uCanvas.size.x), u32(uCanvas.size.y));
   let frame = u32(uFrameTime.frame);
-  var rng_state: u32 = initRng(pixel, resolution, frame);
-  // todo: use seed from javascript code
+  var rng_state: u32 = initRng(pixel, frame, seed);
 
   // average over multiple samples
   let samples_sqrt = uRenderSettings.num_samples_sqrt;
