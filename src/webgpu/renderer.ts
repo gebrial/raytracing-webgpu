@@ -92,6 +92,9 @@ function configureAndWriteCameraToBuffer(device:any) {
 
 // Types are inferred from the browser, so no need to import from 'webgpu-types'.
 export async function render(device: any, context: any) {
+  // Define the maximum number of frames to render
+  const MAX_FRAMES = 500; // Set your desired frame limit here
+
   // Load WGSL shader from external file
   const shaderCode = await fetch('/src/webgpu/shader.wgsl').then(res => res.text());
   const shaderModule = device.createShaderModule({ code: shaderCode });
@@ -291,7 +294,10 @@ export async function render(device: any, context: any) {
     // Wait for GPU to finish before next frame
     device.queue.onSubmittedWorkDone().then(() => {
       [ping, pong] = [pong, ping];
-      animationFrameId = requestAnimationFrame(frameLoop);
+      if (frame < MAX_FRAMES) {
+        animationFrameId = requestAnimationFrame(frameLoop);
+      }
+      // If frame >= MAX_FRAMES, do not schedule another frame
     });
   }
   frameLoop();
