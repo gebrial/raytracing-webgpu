@@ -30,6 +30,7 @@ struct FrameTime {
 struct RenderSettings {
   num_samples_sqrt: u32,
   num_bounces: u32,
+  accumulate_color: u32,
 };
 @group(0) @binding(5) var<uniform> uRenderSettings: RenderSettings;
 
@@ -406,6 +407,11 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   color /= f32(samples);
   color = sqrt(color); // gamma correction
   color = clamp(color, vec3(0.0), vec3(1.0));
+
+  if (uRenderSettings.accumulate_color == 0u) {
+    // No color accumulation
+    return vec4<f32>(color, 1.0);
+  }
 
   // Sample previous frame
   let uv = pos.xy / uCanvas.size;

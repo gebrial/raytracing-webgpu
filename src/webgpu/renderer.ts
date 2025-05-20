@@ -10,7 +10,8 @@ import { Camera } from './camera';
 // constants
 const numSamplesSqrt = 1; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
-const MAX_FRAMES = 500; // Set your desired frame limit here
+const ACCUMULATE_COLOR = false; // Set to true if you want to accumulate color over frames or false for a video
+const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 
 
 function buildFinalSceneSpheresArray(): Sphere[] {
@@ -76,23 +77,25 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
   return sphereBuffer;
 }
 
-function configureAndWriteCameraToBuffer(device:any) {
-  // Camera: vec3 position, vec3 rotation (each f32 = 4 bytes, 6 floats = 24 bytes)
-  // WGSL std140 alignment: each vec3 is padded to 16 bytes, so total 32 bytes
-  const lookFrom = [13, 2, 3]; // camera position
-  const lookAt = [0, 0, 0]; // camera forward
-  const vup = [0, 1, 0]; // camera up
+// time in seconds
+function configureCameraData(time: number = 8.45) {
+  // const lookFrom = [13, 2, 3]; // camera position
+
+  // rotate camera around origin
+  const angle = (time / 40) * Math.PI * 2;
+  const radius = Math.sqrt(13 * 13 + 3 * 3);
+  const lookFrom = [
+    radius * Math.sin(angle),
+    2,
+    radius * Math.cos(angle),
+  ];
+  const lookAt = [0, 0, 0];
+  const vup = [0, 1, 0];
   const camera = new Camera(lookFrom, lookAt, vup);
-  camera.vfov = 20.0 * (Math.PI / 180.0); // vertical field of view in radians
+  camera.vfov = 20.0 * (Math.PI / 180.0);
   camera.defocus_angle = 0.6 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
   camera.focus_dist = 10.0; // distance from camera lookFrom point to plane of perfect focus
-  const cameraData = new Float32Array(camera.getCamera());
-  const cameraBuffer = device.createBuffer({
-    size: cameraData.length * 4, // 4 bytes per float
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
-  return cameraBuffer;
+  return new Float32Array(camera.getCamera());
 }
 
 // Types are inferred from the browser, so no need to import from 'webgpu-types'.
@@ -110,7 +113,13 @@ export async function render(device: any, context: any) {
   });
   device.queue.writeBuffer(uniformBuffer, 0, canvasSize.buffer, canvasSize.byteOffset, canvasSize.byteLength);
 
-  const cameraBuffer = configureAndWriteCameraToBuffer(device);
+  // Create camera buffer
+  let cameraData = configureCameraData();
+  const cameraBuffer = device.createBuffer({
+    size: cameraData.length * 4, // 4 bytes per float
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
 
   // Create uniform buffer for frame/time
   // FrameTime: u32 frame, f32 time (4 + 4 = 8 bytes, but std140 alignment pads to 16 bytes)
@@ -136,10 +145,14 @@ export async function render(device: any, context: any) {
   device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheres.length]));
 
   // --- RenderSettings uniform buffer ---
-  // struct RenderSettings { num_samples: u32, num_bounces: u32 }
-  const renderSettingsData = new Uint32Array([numSamplesSqrt, numBounces]);
+  const renderSettingsData = new Uint32Array([
+    numSamplesSqrt,
+    numBounces,
+    ACCUMULATE_COLOR ? 1 : 0, 
+    0 // pad to 16 bytes
+  ]);
   const renderSettingsBuffer = device.createBuffer({
-    size: 8, // 2 * 4 bytes (u32)
+    size: 16, // 4 * 4 bytes (u32)
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
@@ -242,6 +255,10 @@ export async function render(device: any, context: any) {
     frameTimeData[0] = frame;
     frameTimeData[1] = time;
     device.queue.writeBuffer(frameTimeBuffer, 0, frameTimeData.buffer, frameTimeData.byteOffset, frameTimeData.byteLength);
+
+    // Update camera buffer with current time
+    cameraData = configureCameraData(ACCUMULATE_COLOR ? 8.45 : time);
+    device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
 
     // Re-create bindGroup with the current ping as previous frame texture
     const dynamicBindGroup = device.createBindGroup({
