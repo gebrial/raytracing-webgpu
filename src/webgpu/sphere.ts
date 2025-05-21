@@ -1,11 +1,11 @@
 // src/webgpu/sphere.ts
 import { Material } from './material';
-import type { Vec3 } from './vec3';
+import { Vec3 } from './vec3';
 
 export class Sphere {
-  private center: Vec3;
-  private radius: number;
-  private material: Material;
+  public center: Vec3;
+  public radius: number;
+  public material: Material;
 
   constructor(center: Vec3, radius: number, material: Material) {
     this.center = center;
@@ -19,5 +19,21 @@ export class Sphere {
       this.radius,
       ...this.material.getMaterial(),
     ];
+  }
+
+  getBoundingBoxMin(): Vec3 {
+    return new Vec3(
+      this.center.x - this.radius,
+      this.center.y - this.radius,
+      this.center.z - this.radius
+    );
+  }
+
+  getBoundingBoxMax(): Vec3 {
+    return new Vec3(
+      this.center.x + this.radius,
+      this.center.y + this.radius,
+      this.center.z + this.radius
+    );
   }
 }

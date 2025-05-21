@@ -27,7 +27,7 @@ function buildFinalSceneSpheresArray(): Sphere[] {
       const materialType = Math.random();
       const center = new Vec3(i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random());
       const nearMetalBall = new Vec3(4, 0.2, 0);
-      const distance = Math.sqrt((center.getVec3()[0] - nearMetalBall.getVec3()[0]) ** 2 + (center.getVec3()[1] - nearMetalBall.getVec3()[1]) ** 2 + (center.getVec3()[2] - nearMetalBall.getVec3()[2]) ** 2);
+      const distance = center.distanceTo(nearMetalBall);
       if (distance < 0.9) {
         continue; // Skip this sphere if it's too close to the metal ball
       }
@@ -64,8 +64,59 @@ function buildFinalSceneSpheresArray(): Sphere[] {
   return spheres;
 }
 
-function buildSpheresArray(): Sphere[] {
-  return buildFinalSceneSpheresArray();
+function buildUniformRandomSpheresArray(): Sphere[] {
+  const radius = 0.5;
+  const spheres: Sphere[] = [];
+  const numSpheres = 10;
+  const maxDist = 3;
+  const minVec = new Vec3(-maxDist, -maxDist, -maxDist);
+  const maxVec = new Vec3(maxDist, maxDist, maxDist);
+
+  for (let ii = 0; ii < numSpheres; ii++) {
+    const x = Math.random() * (maxVec.x - minVec.x) + minVec.x;
+    const y = Math.random() * (maxVec.y - minVec.y) + minVec.y;
+    const z = Math.random() * (maxVec.z - minVec.z) + minVec.z;
+    const center = new Vec3(x, y, z);
+    const materialType = Math.random();
+    let material: any;
+
+    if (materialType < 0.8) {
+      // diffuse
+      material = new LambertianMaterial(new Color(Math.random(), Math.random(), Math.random()));
+    } else if (materialType < 0.95) {
+      // metal
+      const albedo = new Color(Math.random(), Math.random(), Math.random());
+      const fuzz = Math.random() * 0.5;
+      material = new MetalMaterial(albedo, fuzz);
+    } else {
+      // glass
+      material = new DielectricMaterial(1.5);
+    }
+
+    const sphere = new Sphere(center, radius, material);
+    spheres.push(sphere);
+  }
+  
+  return spheres;
+}
+
+function logSpheres(spheres: Sphere[]) {
+  spheres.forEach((sphere, index) => {
+    const sphereData = [...sphere.center.getVec3(), sphere.radius];
+    console.log(`Sphere ${index}: ${sphereData}`);
+  });
+}
+
+const SCENARIO = 1;
+function buildSpheresArray(scenario: number): Sphere[] {
+  switch (scenario) {
+    case 0:
+      return buildFinalSceneSpheresArray();
+    case 1:
+      return buildUniformRandomSpheresArray();
+    default:
+      throw new Error('Invalid scenario');
+  }
 }
 
 function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
@@ -76,6 +127,100 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
   });
   device.queue.writeBuffer(sphereBuffer, 0, new Float32Array(sphereData));
   return sphereBuffer;
+}
+
+class BVHNode {
+  private min: Vec3;
+  private max: Vec3;
+  private left: BVHNode | null = null;
+  private right: BVHNode | null = null;
+  private sphereIndex: number = 0;
+  private sphere: Sphere | null = null; // for debugging, remove later
+  private isLeaf: boolean;
+  public thisIndex: number = 0;
+
+  constructor(spheres: Sphere[], start: number = 0, end: number = spheres.length) {
+    let spheresInNode = spheres.slice(start, end);
+
+    let axis = Math.floor(Math.random() * 3);
+
+    const objectSpan = end - start;
+    if (objectSpan === 1) {
+      this.sphereIndex = start;
+      this.sphere = spheresInNode[0];
+      this.isLeaf = true;
+      this.min = spheresInNode[0].getBoundingBoxMin();
+      this.max = spheresInNode[0].getBoundingBoxMax();
+    } else if (objectSpan === 2) {
+      this.left = new BVHNode(spheres, start, start + 1);
+      this.right = new BVHNode(spheres, start + 1, end);
+      this.isLeaf = false;
+      this.min = Vec3.min(this.left.min, this.right.min);
+      this.max = Vec3.max(this.left.max, this.right.max);
+    } else {
+      // sort spheres along the chosen axis
+      // based on min value of the bounding box
+      spheresInNode.sort((a, b) => {
+        const aMin = a.getBoundingBoxMin().at(axis);
+        const bMin = b.getBoundingBoxMin().at(axis);
+        return aMin - bMin;
+      });
+      // add spheres back to list
+      for (let i = start; i < end; i++) {
+        spheres[i] = spheresInNode[i - start];
+      }
+
+      this.left = new BVHNode(spheres, start, start + Math.floor(objectSpan / 2));
+      this.right = new BVHNode(spheres, start + Math.floor(objectSpan / 2), end);
+      this.isLeaf = false;
+      this.min = Vec3.min(this.left.min, this.right.min);
+      this.max = Vec3.max(this.left.max, this.right.max);
+    }
+  }
+
+  getLeftChild(): BVHNode | null {
+    return this.left;
+  }
+  getRightChild(): BVHNode | null {
+    return this.right;
+  }
+
+  getNodeData(): number[] {
+    const nodeData = [
+      ...this.min.getVec3(), 0, // padding to 4 floats
+      ...this.max.getVec3(), 0, // padding to 4 floats
+      this.left?.thisIndex || 0, this.right?.thisIndex || 0,
+      this.sphereIndex,
+      this.isLeaf ? 1 : 0,
+    ];
+    return nodeData;
+  }
+
+  static collectNodes(node: BVHNode): BVHNode[] {
+    const nodes: BVHNode[] = [];
+    nodes.push(node);
+    if (node.left) {
+      nodes.push(...BVHNode.collectNodes(node.left));
+    }
+    if (node.right) {
+      nodes.push(...BVHNode.collectNodes(node.right));
+    }
+    return nodes;
+  }
+
+  static getAllNodesData(node: BVHNode): number[] {
+    const nodes: BVHNode[] = BVHNode.collectNodes(node);
+
+    nodes.forEach((n, index) => {
+      n.thisIndex = index;
+    });
+
+    const nodeData: number[] = [];
+    nodes.forEach(n => {
+      nodeData.push(...n.getNodeData());
+    });
+    return nodeData;
+  }
 }
 
 // time in seconds
@@ -147,7 +292,7 @@ export async function render(device: any, context: any) {
   // --- Spheres setup ---
   // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
   // Example: two spheres with materials
-  const spheres = buildSpheresArray();
+  const spheres = buildSpheresArray(SCENARIO);
   const spheresBuffer = writeSpheresToBuffer(device, spheres);
   // Uniform buffer for number of spheres (u32, padded to 4 bytes)
   const numSpheresBuffer = device.createBuffer({
