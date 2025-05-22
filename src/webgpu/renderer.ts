@@ -64,50 +64,12 @@ function buildFinalSceneSpheresArray(): Sphere[] {
   return spheres;
 }
 
-function buildUniformRandomSpheresArray(): Sphere[] {
-  const radius = 0.5;
-  const spheres: Sphere[] = [];
-  const numSpheres = 10;
-  const maxDist = 3;
-  const minVec = new Vec3(-maxDist, -maxDist, -maxDist);
-  const maxVec = new Vec3(maxDist, maxDist, maxDist);
-
-  for (let ii = 0; ii < numSpheres; ii++) {
-    const x = Math.random() * (maxVec.x - minVec.x) + minVec.x;
-    const y = Math.random() * (maxVec.y - minVec.y) + minVec.y;
-    const z = Math.random() * (maxVec.z - minVec.z) + minVec.z;
-    const center = new Vec3(x, y, z);
-    const materialType = Math.random();
-    let material: any;
-
-    if (materialType < 0.8) {
-      // diffuse
-      material = new LambertianMaterial(new Color(Math.random(), Math.random(), Math.random()));
-    } else if (materialType < 0.95) {
-      // metal
-      const albedo = new Color(Math.random(), Math.random(), Math.random());
-      const fuzz = Math.random() * 0.5;
-      material = new MetalMaterial(albedo, fuzz);
-    } else {
-      // glass
-      material = new DielectricMaterial(1.5);
-    }
-
-    const sphere = new Sphere(center, radius, material);
-    spheres.push(sphere);
-  }
-  
-  return spheres;
-}
-
 
 const SCENARIO = 0;
 function buildSpheresArray(scenario: number): Sphere[] {
   switch (scenario) {
     case 0:
       return buildFinalSceneSpheresArray();
-    case 1:
-      return buildUniformRandomSpheresArray();
     default:
       throw new Error('Invalid scenario');
   }
@@ -133,9 +95,36 @@ class BVHNode {
   public thisIndex: number = 0;
 
   constructor(spheres: Sphere[], start: number = 0, end: number = spheres.length) {
+    function getLongestAxis(min: Vec3, max: Vec3): number {
+      const xSpan = max.x - min.x;
+      const ySpan = max.y - min.y;
+      const zSpan = max.z - min.z;
+      if (xSpan >= ySpan && xSpan >= zSpan) {
+        return 0; // x-axis
+      } else if (ySpan >= xSpan && ySpan >= zSpan) {
+        return 1; // y-axis
+      } else {
+        return 2; // z-axis
+      }
+    }
+
+    function getBoundingBox(spheres: Sphere[]): { min: Vec3; max: Vec3 } {
+      let min = new Vec3(Infinity, Infinity, Infinity);
+      let max = new Vec3(-Infinity, -Infinity, -Infinity);
+      for (let i = 0; i < spheres.length; i++) {
+        const sphere = spheres[i];
+        const sphereMin = sphere.getBoundingBoxMin();
+        const sphereMax = sphere.getBoundingBoxMax();
+        min = Vec3.min(min, sphereMin);
+        max = Vec3.max(max, sphereMax);
+      }
+      return { min, max };
+    }
+
     let spheresInNode = spheres.slice(start, end);
 
-    let axis = Math.floor(Math.random() * 3);
+    const { min, max } = getBoundingBox(spheresInNode);
+    let axis = getLongestAxis(min, max);
 
     const objectSpan = end - start;
     if (objectSpan === 1) {
