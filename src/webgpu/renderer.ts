@@ -9,9 +9,9 @@ import { Vec3 } from './vec3';
 
 
 // constants
-const numSamplesSqrt = 1; // You can set this to any value you want
+const numSamplesSqrt = 3; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
-const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
+const ACCUMULATE_COLOR = false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 
 
@@ -107,7 +107,7 @@ function logSpheres(spheres: Sphere[]) {
   });
 }
 
-const SCENARIO = 1;
+const SCENARIO = 0;
 function buildSpheresArray(scenario: number): Sphere[] {
   switch (scenario) {
     case 0:
@@ -257,6 +257,7 @@ export async function render(device: any, context: any) {
     '/src/webgpu/shaders/raytracing.wgsl',
     '/src/webgpu/shaders/entry.wgsl',
     '/src/webgpu/shaders/bindings.wgsl',
+    '/src/webgpu/shaders/bvhnode.wgsl',
   ];
   const shaderCode = (await Promise.all(shaderFiles.map(f => fetch(f).then(res => res.text())))).join('\n');
   const shaderModule = device.createShaderModule({ code: shaderCode });
@@ -293,6 +294,8 @@ export async function render(device: any, context: any) {
   // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
   // Example: two spheres with materials
   const spheres = buildSpheresArray(SCENARIO);
+  const bvh = new BVHNode(spheres);
+  const bvhNodesData = BVHNode.getAllNodesData(bvh);
   const spheresBuffer = writeSpheresToBuffer(device, spheres);
   // Uniform buffer for number of spheres (u32, padded to 4 bytes)
   const numSpheresBuffer = device.createBuffer({
@@ -300,6 +303,20 @@ export async function render(device: any, context: any) {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheres.length]));
+
+  // --- BVH Nodes buffer setup ---
+  // Each BVHNode: min (vec3) + f32, max (vec3) + f32, 4x u32 = 12 floats (48 bytes) per node
+  const bvhNodesBuffer = device.createBuffer({
+    size: bvhNodesData.length * 4, // 4 bytes per float
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(bvhNodesBuffer, 0, new Float32Array(bvhNodesData));
+  // Uniform buffer for number of BVH nodes (u32, padded to 4 bytes)
+  const numBvhNodesBuffer = device.createBuffer({
+    size: 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(numBvhNodesBuffer, 0, new Uint32Array([bvhNodesData.length / bvh.getNodeData().length]));
 
   // --- RenderSettings uniform buffer ---
   const renderSettingsData = new Uint32Array([
@@ -332,6 +349,8 @@ export async function render(device: any, context: any) {
       { binding: 4, visibility: 2, buffer: { type: 'uniform' } },
       { binding: 5, visibility: 2, buffer: { type: 'uniform' } },
       { binding: 6, visibility: 2, buffer: { type: 'storage' } }, // accumulation buffer (read-write)
+      { binding: 7, visibility: 2, buffer: { type: 'read-only-storage' } }, // BVH nodes
+      { binding: 8, visibility: 2, buffer: { type: 'uniform' } }, // num BVH nodes
     ],
   });
 
@@ -395,6 +414,8 @@ export async function render(device: any, context: any) {
         { binding: 4, resource: { buffer: numSpheresBuffer } },
         { binding: 5, resource: { buffer: renderSettingsBuffer } },
         { binding: 6, resource: { buffer: accumBuffer } },
+        { binding: 7, resource: { buffer: bvhNodesBuffer } },
+        { binding: 8, resource: { buffer: numBvhNodesBuffer } },
       ],
     });
 
