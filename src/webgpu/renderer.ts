@@ -100,12 +100,6 @@ function buildUniformRandomSpheresArray(): Sphere[] {
   return spheres;
 }
 
-function logSpheres(spheres: Sphere[]) {
-  spheres.forEach((sphere, index) => {
-    const sphereData = [...sphere.center.getVec3(), sphere.radius];
-    console.log(`Sphere ${index}: ${sphereData}`);
-  });
-}
 
 const SCENARIO = 0;
 function buildSpheresArray(scenario: number): Sphere[] {
@@ -135,7 +129,6 @@ class BVHNode {
   private left: BVHNode | null = null;
   private right: BVHNode | null = null;
   private sphereIndex: number = 0;
-  private sphere: Sphere | null = null; // for debugging, remove later
   private isLeaf: boolean;
   public thisIndex: number = 0;
 
@@ -147,7 +140,6 @@ class BVHNode {
     const objectSpan = end - start;
     if (objectSpan === 1) {
       this.sphereIndex = start;
-      this.sphere = spheresInNode[0];
       this.isLeaf = true;
       this.min = spheresInNode[0].getBoundingBoxMin();
       this.max = spheresInNode[0].getBoundingBoxMax();
