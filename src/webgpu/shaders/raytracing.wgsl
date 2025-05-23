@@ -46,7 +46,11 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
       new_ray.origin = hit_rec.p;
 
       let random_num = rngNextFloat(rng_state);
-      if (random_num < hit_rec.material.specular) {
+      if (hit_rec.material.emissive > 0.0) {
+        // emissive material
+        ray_color *= hit_rec.material.color.xyz * hit_rec.material.emissive;
+        return ray_color;
+      } else if (random_num < hit_rec.material.specular) {
         // specular reflection
         new_ray.direction = normalize(reflect_ray(new_ray, hit_rec.normal));
         new_ray.direction += hit_rec.material.fuzz * random_unit_vector(rng_state);
@@ -80,11 +84,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
 
       ray_color *= hit_rec.material.color.xyz;
     } else {
-      // For now, just return a color based on the ray direction
-      let unit_direction = normalize(new_ray.direction);
-      let a = 0.5 * (unit_direction.y + 1.0);
-      ray_color *= mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
-      return ray_color;
+      return vec3<f32>(0.0); // no color
     }
   }
 

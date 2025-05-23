@@ -7,6 +7,10 @@ struct Material {
   // refraction chance = 1 - diffuse - specular
   fuzz: f32,
   refractionIndex: f32,
+  emissive: f32,
+  _padding1: f32,
+  _padding2: f32,
+  _padding3: f32,
 };
 
 struct Ray {
@@ -27,6 +31,10 @@ struct Sphere {
   material: Material,
 };
 
+fn default_material() -> Material {
+  return Material(vec4<f32>(1.0), 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+}
+
 fn default_hit_record() -> HitRecord {
-  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), Material(vec4<f32>(1.0), 0.0, 1.0, 0.0, 1.0));
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), default_material());
 }

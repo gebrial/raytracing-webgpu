@@ -31,10 +31,10 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     color += ray_color(ray, &rng_state);
   }
   color /= f32(samples);
-  color = clamp(color, vec3(0.0), vec3(1.0));
 
   if (uRenderSettings.accumulate_color == 0u) {
     // No color accumulation
+    color = clamp(color, vec3(0.0), vec3(1.0));
     color = sqrt(color); // gamma correction
     return vec4<f32>(color, 1.0);
   }
@@ -44,7 +44,8 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
   let prevColor = accumBuffer.data[idx];
   let totalColor = prevColor + color;
   accumBuffer.data[idx] = totalColor;
+  let averageColorClamped = clamp(totalColor / f32(frame + 1), vec3<f32>(0.0), vec3<f32>(1.0));
   // Output normalized and gamma-corrected color
-  let outColor = sqrt(totalColor / f32(frame + 1));
+  let outColor = sqrt(averageColorClamped);
   return vec4<f32>(outColor, 1.0);
 }

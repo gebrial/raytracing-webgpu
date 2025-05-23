@@ -2,28 +2,40 @@
 // Basic renderer that draws a gradient using a fullscreen triangle and a simple WGSL shader
 
 import { Color } from './color';
-import { LambertianMaterial, MetalMaterial, DielectricMaterial } from './material';
+import { LambertianMaterial, MetalMaterial, DielectricMaterial, GlossyMaterial, EmissiveMaterial } from './material';
 import { Sphere } from './sphere';
 import { Camera } from './camera';
 import { Vec3 } from './vec3';
 
 
 // constants
-const numSamplesSqrt = 3; // You can set this to any value you want
+const numSamplesSqrt = 4; // You can set this to any value you want
 const numBounces = 10; // You can set this to any value you want
-const ACCUMULATE_COLOR = false; // Set to true if you want to accumulate color over frames or false for a video
+const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 
 
 function buildFinalSceneSpheresArray(): Sphere[] {
   const spheres: Sphere[] = [];
 
+  const groundSphereRadius = 10000;
   const groundMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
-  const groundSphere = new Sphere(new Vec3(0, -1000, 0), 1000, groundMaterial);
+  const groundSphere = new Sphere(new Vec3(0, -groundSphereRadius, 0), groundSphereRadius, groundMaterial);
   spheres.push(groundSphere);
 
-  for (let i = -11; i < 11; i++) {
-    for (let j = -11; j < 11; j++) {
+  const sunMaterial = new EmissiveMaterial(new Color(1, 1, 1), 5);
+  const sunYAngle = 41.8 * (Math.PI / 180.0); // angle so that parallel rays cause glass spheres to focus light on ground
+  const sunDistance = 2000;
+  const sunHeight = Math.tan(sunYAngle) * sunDistance;
+  const sunXZAngle = 1;
+  var sunRadius =  sunDistance * 695700.0 / 149600000.0; // real sun apparent size
+  sunRadius *= 30; // scale up the sun radius to be visible in the scene
+  const sunPosition = new Vec3(sunDistance * Math.cos(sunXZAngle), sunHeight, -sunDistance * Math.sin(sunXZAngle));
+  const sunSphere = new Sphere(sunPosition, sunRadius, sunMaterial);
+  spheres.push(sunSphere);
+
+  for (let i = -111; i < 111; i++) {
+    for (let j = -111; j < 111; j++) {
       const materialType = Math.random();
       const center = new Vec3(i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random());
       const nearMetalBall = new Vec3(4, 0.2, 0);
@@ -33,7 +45,16 @@ function buildFinalSceneSpheresArray(): Sphere[] {
       }
       let material: any;
 
-      if (materialType < 0.8) {
+      if (materialType < 0.2) {
+        // emissive
+        const albedo = new Color(Math.random(), Math.random(), Math.random());
+        material = new EmissiveMaterial(albedo, Math.random() * 2.0);
+      } else if (materialType < 0.4) {
+        // glossy
+        const fuzz = Math.random() * 0.5;
+        const albedo = new Color(Math.random() * Math.random(), Math.random() * Math.random(), Math.random() * Math.random());
+        material = new GlossyMaterial(albedo, fuzz, Math.random() * 0.5 + 0.25);
+      } else if (materialType < 0.8) {
         // diffuse
         material = new LambertianMaterial(new Color(Math.random() * Math.random(), Math.random() * Math.random(), Math.random() * Math.random()));
       } else if (materialType < 0.95) {
