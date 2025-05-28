@@ -1,0 +1,142 @@
+import { Camera } from "./camera";
+import { Color } from "./color";
+import { DielectricMaterial, EmissiveMaterial, GlossyMaterial, LambertianMaterial, MetalMaterial } from "./material";
+import { Quadrilateral } from "./quadrilateral";
+import { Sphere, type BoundingBox } from "./sphere";
+import { Vec3 } from "./vec3";
+
+export abstract class Scene {
+  abstract getObjectsArray(): BoundingBox[];
+  abstract getCameraData(time?: number): Float32Array;
+}
+
+export class BasicScene extends Scene {
+  getObjectsArray(): BoundingBox[] {
+    const objects: BoundingBox[] = [];
+
+    const materialGround = new LambertianMaterial(new Color(0.8, 0.8, 0.0));
+    const materialCenter = new LambertianMaterial(new Color(0.1, 0.2, 0.5));
+    const materialLeft = new DielectricMaterial(1.5);
+    const materialBubble = new DielectricMaterial(1.0 / 1.5);
+    const materialRight = new MetalMaterial(new Color(0.8, 0.6, 0.2), 0.0);
+
+    objects.push(
+      new Sphere(new Vec3(0, -100.5, -1.0), 100.0, materialGround),
+      new Sphere(new Vec3(0, 0, -1.2), 0.5, materialCenter),
+      new Sphere(new Vec3(-1.0, 0, -1.0), 0.5, materialLeft),
+      new Sphere(new Vec3(-1.0, 0, -1.0), 0.4, materialBubble),
+      new Sphere(new Vec3(1.0, 0, -1.0), 0.5, materialRight)
+    );
+
+    return objects;
+  }
+
+  getCameraData(time: number = 0): Float32Array {
+    // Basic scene camera configuration
+    const lookFrom = new Vec3(0, 0, 0); // camera position
+    const lookAt = new Vec3(0, 0, -1); // point to look at
+    const vup = new Vec3(0, 1, 0); // up vector
+    const camera = new Camera(lookFrom, lookAt, vup);
+    camera.vfov = 90.0 * (Math.PI / 180.0); // vertical field of view in radians
+    camera.defocus_angle = 0.0 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
+    camera.focus_dist = lookFrom.distanceTo(lookAt); // distance from camera lookFrom point to plane of perfect focus
+    return new Float32Array(camera.getCamera());
+  }
+}
+
+export class FinalScene extends Scene {
+  getObjectsArray(): BoundingBox[] {
+    const objects: BoundingBox[] = [];
+
+    const groundMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
+    const groundQuad = new Quadrilateral(
+      new Vec3(-100, 0, -100), // corner
+      new Vec3(200, 0, 0), // u vector
+      new Vec3(0, 0, 200), // v vector
+      groundMaterial
+    );
+    objects.push(groundQuad);
+
+    const sunMaterial = new EmissiveMaterial(new Color(1, 1, 1), 5);
+    const sunYAngle = 41.8 * (Math.PI / 180.0); // angle so that parallel rays cause glass spheres to focus light on ground
+    const sunDistance = 2000;
+    const sunHeight = Math.tan(sunYAngle) * sunDistance;
+    const sunXZAngle = 1;
+    var sunRadius =  sunDistance * 695700.0 / 149600000.0; // real sun apparent size
+    sunRadius *= 30; // scale up the sun radius to be visible in the scene
+    const sunPosition = new Vec3(sunDistance * Math.cos(sunXZAngle), sunHeight, -sunDistance * Math.sin(sunXZAngle));
+    const sunSphere = new Sphere(sunPosition, sunRadius, sunMaterial);
+
+    for (let i = -111; i < 111; i++) {
+      for (let j = -111; j < 111; j++) {
+        const materialType = Math.random();
+        const center = new Vec3(i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random());
+        const nearMetalBall = new Vec3(4, 0.2, 0);
+        const distance = center.distanceTo(nearMetalBall);
+        if (distance < 0.9) {
+          continue; // Skip this sphere if it's too close to the metal ball
+        }
+        let material: any;
+
+        if (materialType < 0.2) {
+          // emissive
+          const albedo = new Color(Math.random(), Math.random(), Math.random());
+          material = new EmissiveMaterial(albedo, Math.random() * 2.0);
+        } else if (materialType < 0.4) {
+          // glossy
+          const fuzz = Math.random() * 0.5;
+          const albedo = new Color(Math.random() * Math.random(), Math.random() * Math.random(), Math.random() * Math.random());
+          material = new GlossyMaterial(albedo, fuzz, Math.random() * 0.5 + 0.25);
+        } else if (materialType < 0.8) {
+          // diffuse
+          material = new LambertianMaterial(new Color(Math.random() * Math.random(), Math.random() * Math.random(), Math.random() * Math.random()));
+        } else if (materialType < 0.95) {
+          // metal
+          const albedo = new Color(Math.random()*0.5 + 0.5, Math.random()*0.5 + 0.5, Math.random()*0.5 + 0.5);
+          const fuzz = Math.random() * 0.5;
+          material = new MetalMaterial(albedo, fuzz);
+        } else {
+          // glass
+          material = new DielectricMaterial(1.0 + Math.random());
+        }
+
+        const sphere = new Sphere(center, 0.2, material);
+        objects.push(sphere);
+      }
+    }
+
+    const material1 = new DielectricMaterial(1.5);
+    const sphere1 = new Sphere(new Vec3(0, 1, 0), 1, material1);
+    objects.push(sphere1);
+    const material2 = new LambertianMaterial(new Color(0.4, 0.2, 0.1));
+    const sphere2 = new Sphere(new Vec3(-4, 1, 0), 1, material2);
+    objects.push(sphere2);
+    const material3 = new MetalMaterial(new Color(0.7, 0.6, 0.5), 0.0);
+    const sphere3 = new Sphere(new Vec3(4, 1, 0), 1, material3);
+    objects.push(sphere3);
+    objects.push(sunSphere);
+
+    return objects;
+  }
+
+  // time in seconds
+  getCameraData(time: number = 8.45): Float32Array {
+    // const lookFrom = [13, 2, 3]; // camera position
+
+    // rotate camera around origin
+    const angle = (time / 40) * Math.PI * 2;
+    const radius = Math.sqrt(13 * 13 + 3 * 3);
+    const lookFrom = new Vec3(
+      radius * Math.sin(angle),
+      2,
+      radius * Math.cos(angle),
+    );
+    const lookAt = new Vec3(0, 0, 0);
+    const vup = new Vec3(0, 1, 0);
+    const camera = new Camera(lookFrom, lookAt, vup);
+    camera.vfov = 20.0 * (Math.PI / 180.0);
+    camera.defocus_angle = 0.6 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
+    camera.focus_dist = 10.0; // distance from camera lookFrom point to plane of perfect focus
+    return new Float32Array(camera.getCamera());
+  }
+}
