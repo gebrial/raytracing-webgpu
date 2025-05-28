@@ -110,7 +110,7 @@ function buildFinalSceneObjectsArray(): BoundingBox[] {
 }
 
 
-const SCENARIO = 1;
+const SCENARIO = 0;
 function buildSpheresArray(scenario: number): BoundingBox[] {
   switch (scenario) {
     case 0:
@@ -122,7 +122,7 @@ function buildSpheresArray(scenario: number): BoundingBox[] {
   }
 }
 
-function configureCameraData(scenario: number, time: number): Float32Array {
+function configureCameraData(scenario: number, time: number = 0): Float32Array {
   switch (scenario) {
     case 0:
       return configureCameraDataFinalScene(time);
@@ -415,9 +415,10 @@ export async function render(device: any, context: any) {
     numBounces,
     ACCUMULATE_COLOR ? 1 : 0, 
     Math.random() * (2 ** 32 - 1), // random seed
+    SCENARIO, // 0 for black background, 1 for blue sky
   ]);
   const renderSettingsBuffer = device.createBuffer({
-    size: 16, // 4 * 4 bytes (u32)
+    size: renderSettingsData.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
@@ -492,6 +493,7 @@ export async function render(device: any, context: any) {
       numBounces,
       ACCUMULATE_COLOR ? 1 : 0,
       random_seed, // random seed
+      SCENARIO, // 0 for black background, 1 for blue sky
     ]);
     device.queue.writeBuffer(renderSettingsBuffer, 0, renderSettingsData.buffer, renderSettingsData.byteOffset, renderSettingsData.byteLength);
 
