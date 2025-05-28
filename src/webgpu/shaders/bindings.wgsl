@@ -6,4 +6,5 @@
 @group(0) @binding(5) var<uniform> uRenderSettings: RenderSettings;
 @group(0) @binding(6) var<storage, read_write> accumBuffer: AccumBuffer;
 @group(0) @binding(7) var<storage, read> bvhNodes: array<BVHNode>;
-@group(0) @binding(4) var<uniform> uNumBvhNodes: u32;
+@group(0) @binding(8) var<uniform> uNumBvhNodes: u32;
+@group(0) @binding(9) var<storage, read> quads: array<Quad>;

@@ -23,6 +23,7 @@ struct HitRecord {
   p: vec3<f32>, // hit point
   normal: vec3<f32>, // surface normal at hit point
   material: Material, // material at hit point
+  front_face: bool, // true if the ray is hitting the front face of the surface
 };
 
 struct Sphere {
@@ -31,10 +32,18 @@ struct Sphere {
   material: Material,
 };
 
+struct Quad {
+  corner: vec3<f32>, _pad0: f32,
+  u: vec3<f32>, _pad1: f32,
+  v: vec3<f32>, _pad2: f32,
+  material: Material,
+  // precompute other values for faster intersection tests
+}
+
 fn default_material() -> Material {
   return Material(vec4<f32>(1.0), 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
 }
 
 fn default_hit_record() -> HitRecord {
-  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), default_material());
+  return HitRecord(-1.0, vec3<f32>(0.0), vec3<f32>(0.0), default_material(), false);
 }

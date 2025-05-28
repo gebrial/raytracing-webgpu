@@ -3,9 +3,10 @@
 
 import { Color } from './color';
 import { LambertianMaterial, MetalMaterial, DielectricMaterial, GlossyMaterial, EmissiveMaterial } from './material';
-import { Sphere } from './sphere';
+import { Sphere, type BoundingBox } from './sphere';
 import { Camera } from './camera';
 import { Vec3 } from './vec3';
+import { Quadrilateral } from './quadrilateral';
 
 
 // constants
@@ -14,14 +15,17 @@ const numBounces = 10; // You can set this to any value you want
 const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 
+function buildFinalSceneObjectsArray(): BoundingBox[] {
+  const objects: BoundingBox[] = [];
 
-function buildFinalSceneSpheresArray(): Sphere[] {
-  const spheres: Sphere[] = [];
-
-  const groundSphereRadius = 10000;
   const groundMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
-  const groundSphere = new Sphere(new Vec3(0, -groundSphereRadius, 0), groundSphereRadius, groundMaterial);
-  spheres.push(groundSphere);
+  const groundQuad = new Quadrilateral(
+    new Vec3(-100, 0, -100), // corner
+    new Vec3(200, 0, 0), // u vector
+    new Vec3(0, 0, 200), // v vector
+    groundMaterial
+  );
+  objects.push(groundQuad);
 
   const sunMaterial = new EmissiveMaterial(new Color(1, 1, 1), 5);
   const sunYAngle = 41.8 * (Math.PI / 180.0); // angle so that parallel rays cause glass spheres to focus light on ground
@@ -32,7 +36,6 @@ function buildFinalSceneSpheresArray(): Sphere[] {
   sunRadius *= 30; // scale up the sun radius to be visible in the scene
   const sunPosition = new Vec3(sunDistance * Math.cos(sunXZAngle), sunHeight, -sunDistance * Math.sin(sunXZAngle));
   const sunSphere = new Sphere(sunPosition, sunRadius, sunMaterial);
-  spheres.push(sunSphere);
 
   for (let i = -111; i < 111; i++) {
     for (let j = -111; j < 111; j++) {
@@ -68,35 +71,63 @@ function buildFinalSceneSpheresArray(): Sphere[] {
       }
 
       const sphere = new Sphere(center, 0.2, material);
-      spheres.push(sphere);
+      objects.push(sphere);
     }
   }
 
   const material1 = new DielectricMaterial(1.5);
   const sphere1 = new Sphere(new Vec3(0, 1, 0), 1, material1);
-  spheres.push(sphere1);
+  objects.push(sphere1);
   const material2 = new LambertianMaterial(new Color(0.4, 0.2, 0.1));
   const sphere2 = new Sphere(new Vec3(-4, 1, 0), 1, material2);
-  spheres.push(sphere2);
+  objects.push(sphere2);
   const material3 = new MetalMaterial(new Color(0.7, 0.6, 0.5), 0.0);
   const sphere3 = new Sphere(new Vec3(4, 1, 0), 1, material3);
-  spheres.push(sphere3);
+  objects.push(sphere3);
+  objects.push(sunSphere);
 
-  return spheres;
+  return objects;
 }
 
 
 const SCENARIO = 0;
-function buildSpheresArray(scenario: number): Sphere[] {
+function buildSpheresArray(scenario: number): BoundingBox[] {
   switch (scenario) {
     case 0:
-      return buildFinalSceneSpheresArray();
+      return buildFinalSceneObjectsArray();
     default:
       throw new Error('Invalid scenario');
   }
 }
 
+function writeQuadsToBuffer(device: any, quads: Quadrilateral[]) {
+  if (!quads || quads.length === 0) {
+    // make dummy quad if no quads are provided
+    const dummyMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
+    const dummyQuad = new Quadrilateral(
+      new Vec3(0, 0, 0), // corner
+      new Vec3(0, 0, 0), // u vector
+      new Vec3(0, 0, 0), // v vector
+      dummyMaterial
+    );
+    quads = [dummyQuad];
+  }
+  const quadData = quads.flatMap(quad => quad.getQuadrilateral());
+  const quadBuffer = device.createBuffer({
+    size: quadData.length * 4, // 4 bytes per float
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(quadBuffer, 0, new Float32Array(quadData));
+  return quadBuffer;
+}
+
 function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
+  if (!spheres || spheres.length === 0) {
+    // make dummy sphere if no spheres are provided
+    const dummyMaterial = new LambertianMaterial(new Color(0.5, 0.5, 0.5));
+    const dummySphere = new Sphere(new Vec3(0, 0, 0), 0, dummyMaterial);
+    spheres = [dummySphere];
+  }
   const sphereData = spheres.flatMap(sphere => sphere.getSphere());
   const sphereBuffer = device.createBuffer({
     size: sphereData.length * 4, // 4 bytes per float
@@ -111,11 +142,12 @@ class BVHNode {
   private max: Vec3;
   private left: BVHNode | null = null;
   private right: BVHNode | null = null;
-  private sphereIndex: number = 0;
+  private primitiveIndex: number = -1;
+  private primitiveType: number = -1;
   private isLeaf: boolean;
   public thisIndex: number = 0;
 
-  constructor(spheres: Sphere[], start: number = 0, end: number = spheres.length) {
+  constructor(primitives: {index: number, object: BoundingBox}[]) {
     function getLongestAxis(min: Vec3, max: Vec3): number {
       const xSpan = max.x - min.x;
       const ySpan = max.y - min.y;
@@ -129,51 +161,47 @@ class BVHNode {
       }
     }
 
-    function getBoundingBox(spheres: Sphere[]): { min: Vec3; max: Vec3 } {
+    function getBoundingBox(primitives: BoundingBox[]): { min: Vec3; max: Vec3 } {
       let min = new Vec3(Infinity, Infinity, Infinity);
       let max = new Vec3(-Infinity, -Infinity, -Infinity);
-      for (let i = 0; i < spheres.length; i++) {
-        const sphere = spheres[i];
-        const sphereMin = sphere.getBoundingBoxMin();
-        const sphereMax = sphere.getBoundingBoxMax();
+      for (let i = 0; i < primitives.length; i++) {
+        const primitive = primitives[i];
+        const sphereMin = primitive.getBoundingBoxMin();
+        const sphereMax = primitive.getBoundingBoxMax();
         min = Vec3.min(min, sphereMin);
         max = Vec3.max(max, sphereMax);
       }
       return { min, max };
     }
 
-    let spheresInNode = spheres.slice(start, end);
-
-    const { min, max } = getBoundingBox(spheresInNode);
+    const { min, max } = getBoundingBox(primitives.map(s => s.object));
     let axis = getLongestAxis(min, max);
 
-    const objectSpan = end - start;
+    const objectSpan = primitives.length;
     if (objectSpan === 1) {
-      this.sphereIndex = start;
+      this.primitiveIndex = primitives[0].index;
+      this.primitiveType = primitives[0].object.primitiveType;
       this.isLeaf = true;
-      this.min = spheresInNode[0].getBoundingBoxMin();
-      this.max = spheresInNode[0].getBoundingBoxMax();
+      this.min = primitives[0].object.getBoundingBoxMin();
+      this.max = primitives[0].object.getBoundingBoxMax();
     } else if (objectSpan === 2) {
-      this.left = new BVHNode(spheres, start, start + 1);
-      this.right = new BVHNode(spheres, start + 1, end);
+      this.left = new BVHNode([primitives[0]]);
+      this.right = new BVHNode([primitives[1]]);
       this.isLeaf = false;
       this.min = Vec3.min(this.left.min, this.right.min);
       this.max = Vec3.max(this.left.max, this.right.max);
     } else {
       // sort spheres along the chosen axis
       // based on min value of the bounding box
-      spheresInNode.sort((a, b) => {
-        const aMin = a.getBoundingBoxMin().at(axis);
-        const bMin = b.getBoundingBoxMin().at(axis);
+      primitives.sort((a, b) => {
+        const aMin = a.object.getBoundingBoxMin().at(axis);
+        const bMin = b.object.getBoundingBoxMin().at(axis);
         return aMin - bMin;
       });
-      // add spheres back to list
-      for (let i = start; i < end; i++) {
-        spheres[i] = spheresInNode[i - start];
-      }
 
-      this.left = new BVHNode(spheres, start, start + Math.floor(objectSpan / 2));
-      this.right = new BVHNode(spheres, start + Math.floor(objectSpan / 2), end);
+      const mid = Math.floor(objectSpan / 2);
+      this.left = new BVHNode(primitives.slice(0, mid));
+      this.right = new BVHNode(primitives.slice(mid, objectSpan));
       this.isLeaf = false;
       this.min = Vec3.min(this.left.min, this.right.min);
       this.max = Vec3.max(this.left.max, this.right.max);
@@ -190,9 +218,9 @@ class BVHNode {
   getNodeData(): number[] {
     const nodeData = [
       ...this.min.getVec3(), 0, // padding to 4 floats
-      ...this.max.getVec3(), 0, // padding to 4 floats
+      ...this.max.getVec3(), this.primitiveType, // padding to 4 floats
       this.left?.thisIndex || 0, this.right?.thisIndex || 0,
-      this.sphereIndex,
+      this.primitiveIndex,
       this.isLeaf ? 1 : 0,
     ];
     return nodeData;
@@ -295,16 +323,32 @@ export async function render(device: any, context: any) {
   // --- Spheres setup ---
   // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
   // Example: two spheres with materials
-  const spheres = buildSpheresArray(SCENARIO);
-  const bvh = new BVHNode(spheres);
+  const objects = buildSpheresArray(SCENARIO);
+  const spheresArray = objects.filter(obj => obj instanceof Sphere) as Sphere[];
+  const quadsArray = objects.filter(obj => obj instanceof Quadrilateral) as Quadrilateral[];
+  const bvh = new BVHNode(objects.map((obj, index) => {
+    const indexInSpheres = spheresArray.indexOf(obj as Sphere);
+    const indexInQuads = quadsArray.indexOf(obj as Quadrilateral);
+    if (indexInSpheres !== -1) {
+      return { index: indexInSpheres, object: obj };
+    }
+    if (indexInQuads !== -1) {
+      return { index: indexInQuads, object: obj };
+    }
+
+    throw new Error('Object is neither a Sphere nor a Quadrilateral');
+  }));
   const bvhNodesData = BVHNode.getAllNodesData(bvh);
-  const spheresBuffer = writeSpheresToBuffer(device, spheres);
+  const spheresBuffer = writeSpheresToBuffer(device, spheresArray);
   // Uniform buffer for number of spheres (u32, padded to 4 bytes)
   const numSpheresBuffer = device.createBuffer({
     size: 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheres.length]));
+  device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheresArray.length]));
+
+  // --- Quads setup ---
+  const quadsBuffer = writeQuadsToBuffer(device, quadsArray);
 
   // --- BVH Nodes buffer setup ---
   // Each BVHNode: min (vec3) + f32, max (vec3) + f32, 4x u32 = 12 floats (48 bytes) per node
@@ -353,6 +397,7 @@ export async function render(device: any, context: any) {
       { binding: 6, visibility: 2, buffer: { type: 'storage' } }, // accumulation buffer (read-write)
       { binding: 7, visibility: 2, buffer: { type: 'read-only-storage' } }, // BVH nodes
       { binding: 8, visibility: 2, buffer: { type: 'uniform' } }, // num BVH nodes
+      { binding: 9, visibility: 2, buffer: { type: 'read-only-storage' } }, // quads
     ],
   });
 
@@ -418,6 +463,7 @@ export async function render(device: any, context: any) {
         { binding: 6, resource: { buffer: accumBuffer } },
         { binding: 7, resource: { buffer: bvhNodesBuffer } },
         { binding: 8, resource: { buffer: numBvhNodesBuffer } },
+        { binding: 9, resource: { buffer: quadsBuffer } },
       ],
     });
 
