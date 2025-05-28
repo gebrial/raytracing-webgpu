@@ -15,6 +15,26 @@ const numBounces = 10; // You can set this to any value you want
 const ACCUMULATE_COLOR = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = ACCUMULATE_COLOR ? 500 : 5000; // Set your desired frame limit here
 
+function buildBasicSceneObjectsArray(): BoundingBox[] {
+  const objects: BoundingBox[] = [];
+
+  const materialGround = new LambertianMaterial(new Color(0.8, 0.8, 0.0));
+  const materialCenter = new LambertianMaterial(new Color(0.1, 0.2, 0.5));
+  const materialLeft = new DielectricMaterial(1.5);
+  const materialBubble = new DielectricMaterial(1.0 / 1.5);
+  const materialRight = new MetalMaterial(new Color(0.8, 0.6, 0.2), 0.0);
+
+  objects.push(
+    new Sphere(new Vec3(0, -100.5, -1.0), 100.0, materialGround),
+    new Sphere(new Vec3(0, 0, -1.2), 0.5, materialCenter),
+    new Sphere(new Vec3(-1.0, 0, -1.0), 0.5, materialLeft),
+    new Sphere(new Vec3(-1.0, 0, -1.0), 0.4, materialBubble),
+    new Sphere(new Vec3(1.0, 0, -1.0), 0.5, materialRight)
+  );
+
+  return objects;
+}
+
 function buildFinalSceneObjectsArray(): BoundingBox[] {
   const objects: BoundingBox[] = [];
 
@@ -90,11 +110,24 @@ function buildFinalSceneObjectsArray(): BoundingBox[] {
 }
 
 
-const SCENARIO = 0;
+const SCENARIO = 1;
 function buildSpheresArray(scenario: number): BoundingBox[] {
   switch (scenario) {
     case 0:
       return buildFinalSceneObjectsArray();
+    case 1:
+      return buildBasicSceneObjectsArray();
+    default:
+      throw new Error('Invalid scenario');
+  }
+}
+
+function configureCameraData(scenario: number, time: number): Float32Array {
+  switch (scenario) {
+    case 0:
+      return configureCameraDataFinalScene(time);
+    case 1:
+      return configureCameraDataBasicScene();
     default:
       throw new Error('Invalid scenario');
   }
@@ -253,8 +286,20 @@ class BVHNode {
   }
 }
 
+function configureCameraDataBasicScene(): Float32Array {
+  // Basic scene camera configuration
+  const lookFrom = new Vec3(0, 0, 0); // camera position
+  const lookAt = new Vec3(0, 0, -1); // point to look at
+  const vup = new Vec3(0, 1, 0); // up vector
+  const camera = new Camera(lookFrom, lookAt, vup);
+  camera.vfov = 90.0 * (Math.PI / 180.0); // vertical field of view in radians
+  camera.defocus_angle = 0.0 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
+  camera.focus_dist = lookFrom.distanceTo(lookAt); // distance from camera lookFrom point to plane of perfect focus
+  return new Float32Array(camera.getCamera());
+}
+
 // time in seconds
-function configureCameraData(time: number = 8.45) {
+function configureCameraDataFinalScene(time: number = 8.45): Float32Array {
   // const lookFrom = [13, 2, 3]; // camera position
 
   // rotate camera around origin
@@ -302,7 +347,7 @@ export async function render(device: any, context: any) {
   device.queue.writeBuffer(uniformBuffer, 0, canvasSize.buffer, canvasSize.byteOffset, canvasSize.byteLength);
 
   // Create camera buffer
-  let cameraData = configureCameraData();
+  let cameraData = configureCameraData(SCENARIO);
   const cameraBuffer = device.createBuffer({
     size: cameraData.length * 4, // 4 bytes per float
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -434,7 +479,7 @@ export async function render(device: any, context: any) {
     frame += 1;
 
     // Update camera buffer with current time
-    cameraData = configureCameraData(ACCUMULATE_COLOR ? 8.45 : time);
+    cameraData = configureCameraData(SCENARIO, ACCUMULATE_COLOR ? 8.45 : time);
     device.queue.writeBuffer(cameraBuffer, 0, cameraData.buffer, cameraData.byteOffset, cameraData.byteLength);
 
     // approximate magic numbers from trial and error
