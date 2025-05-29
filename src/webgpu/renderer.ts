@@ -128,7 +128,7 @@ function createAndWriteObjectBuffers(device: any, objects: BoundingBox[]) {
   const spheresArray = objects.filter(obj => obj instanceof Sphere) as Sphere[];
   const quadsArray = objects.filter(obj => obj instanceof Quadrilateral) as Quadrilateral[];
 
-  const bvh = new BVHNode(objects.map((obj, index) => {
+  const bvh = new BVHNode(objects.map((obj, _index) => {
     const indexInSpheres = spheresArray.indexOf(obj as Sphere);
     const indexInQuads = quadsArray.indexOf(obj as Quadrilateral);
     if (indexInSpheres !== -1) {

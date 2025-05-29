@@ -211,7 +211,7 @@ export class CornellBoxScene extends Scene {
     return objects;
   }
 
-  getCameraData(time: number = 0.0): Float32Array {
+  getCameraData(_time: number = 0.0): Float32Array {
     // const lookFrom = [13, 2, 3]; // camera position
 
     // rotate camera around origin
