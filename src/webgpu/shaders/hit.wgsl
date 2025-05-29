@@ -65,6 +65,16 @@ fn hit_quad(quad: Quad, ray: Ray, ray_t: Interval) -> HitRecord {
 
   let intersection = ray.origin + t * ray.direction;
 
+  // Check if the intersection point is inside the quad
+  let planar_hitpt_vector = intersection - quad.corner;
+  let w = n / dot(n, n);
+  let alpha = dot(w, cross(planar_hitpt_vector, quad.v));
+  let beta = dot(w, cross(quad.u, planar_hitpt_vector));
+  let is_interior = (alpha >= 0.0) && (beta >= 0.0) && (alpha <= 1) && (beta <= 1);
+  if (!is_interior) {
+    return temp_rec; // Intersection is outside the quad
+  }
+
   temp_rec.t = t;
   temp_rec.p = intersection;
   temp_rec.front_face = is_front_face(ray, normal);
