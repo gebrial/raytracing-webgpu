@@ -31,7 +31,7 @@ export class BasicScene extends Scene {
     return objects;
   }
 
-  getCameraData(time: number = 0): Float32Array {
+  getCameraData(_time: number = 0): Float32Array {
     // Basic scene camera configuration
     const lookFrom = new Vec3(0, 0, 0); // camera position
     const lookAt = new Vec3(0, 0, -1); // point to look at
@@ -136,6 +136,91 @@ export class FinalScene extends Scene {
     const camera = new Camera(lookFrom, lookAt, vup);
     camera.vfov = 20.0 * (Math.PI / 180.0);
     camera.defocus_angle = 0.6 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
+    camera.focus_dist = 10.0; // distance from camera lookFrom point to plane of perfect focus
+    return new Float32Array(camera.getCamera());
+  }
+}
+
+export class CornellBoxScene extends Scene {
+  getObjectsArray(): BoundingBox[] {
+    const objects: BoundingBox[] = [];
+
+    const redMaterial = new LambertianMaterial(new Color(0.65, 0.05, 0.05));
+    const whiteMaterial = new LambertianMaterial(new Color(0.73, 0.73, 0.73));
+    const greenMaterial = new LambertianMaterial(new Color(0.12, 0.45, 0.15));
+    const lightMaterial = new EmissiveMaterial(new Color(1.0, 1.0, 1.0), 15.0);
+
+    // Create the walls of the Cornell Box
+    // Left wall
+    objects.push(
+      new Quadrilateral(
+        new Vec3(555, 0, 0), // corner
+        new Vec3(0, 555, 0), // u vector
+        new Vec3(0, 0, 555), // v vector
+        greenMaterial // material
+      )
+    );
+
+    // Right wall
+    objects.push(
+      new Quadrilateral(
+        new Vec3(0, 0, 0), // corner
+        new Vec3(0, 555, 0), // u vector
+        new Vec3(0, 0, 555), // v vector
+        redMaterial // material
+      )
+    );
+
+    // Add ceiling light
+    objects.push(
+      new Quadrilateral(
+        new Vec3(343, 554, 332), // corner
+        new Vec3(-130, 0, 0), // u vector
+        new Vec3(0, 0, -105), // v vector
+        lightMaterial // material
+      )
+    );
+    // Floor
+    objects.push(
+      new Quadrilateral(
+        new Vec3(0, 0, 0), // corner
+        new Vec3(555, 0, 0), // u vector
+        new Vec3(0, 0, 555), // v vector
+        whiteMaterial // material
+      )
+    );
+    // Ceiling
+    objects.push(
+      new Quadrilateral(
+        new Vec3(555, 555, 555), // corner
+        new Vec3(-555, 0, 0), // u vector
+        new Vec3(0, 0, -555), // v vector
+        whiteMaterial // material
+      )
+    );
+    // Back wall
+    objects.push(
+      new Quadrilateral(
+        new Vec3(0, 0, 555), // corner
+        new Vec3(555, 0, 0), // u vector
+        new Vec3(0, 555, 0), // v vector
+        whiteMaterial // material
+      )
+    );
+
+    return objects;
+  }
+
+  getCameraData(time: number = 0.0): Float32Array {
+    // const lookFrom = [13, 2, 3]; // camera position
+
+    // rotate camera around origin
+    const lookFrom = new Vec3(278, 278, -800); // camera position
+    const lookAt = new Vec3(278, 278, 0); // point to look at
+    const vup = new Vec3(0, 1, 0);
+    const camera = new Camera(lookFrom, lookAt, vup);
+    camera.vfov = 40.0 * (Math.PI / 180.0);
+    camera.defocus_angle = 0.0 * (Math.PI / 180.0); // variation angle of rays through each pixel in radians
     camera.focus_dist = 10.0; // distance from camera lookFrom point to plane of perfect focus
     return new Float32Array(camera.getCamera());
   }

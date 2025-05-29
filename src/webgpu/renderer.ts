@@ -7,7 +7,7 @@ import { Sphere, type BoundingBox } from './sphere';
 import { Vec3 } from './vec3';
 import { Quadrilateral } from './quadrilateral';
 import { BVHNode } from './boundVolumeHierarchy';
-import { BasicScene, FinalScene, type Scene } from './scene';
+import { BasicScene, CornellBoxScene, FinalScene, type Scene } from './scene';
 
 
 // constants
@@ -15,7 +15,7 @@ const NUM_SAMPLES_SQRT = 4; // You can set this to any value you want
 const NUM_BOUNCES = 10; // You can set this to any value you want
 const SINGLE_IMAGE = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = SINGLE_IMAGE ? 50 : 5000; // Set your desired frame limit here
-const SCENARIO = 0;
+const SCENARIO = 2;
 
 function getScene(scenario: number): Scene {
   switch (scenario) {
@@ -23,6 +23,8 @@ function getScene(scenario: number): Scene {
       return new FinalScene();
     case 1:
       return new BasicScene();
+    case 2:
+      return new CornellBoxScene();
     default:
       throw new Error(`Unknown scenario: ${scenario}`);
   }
