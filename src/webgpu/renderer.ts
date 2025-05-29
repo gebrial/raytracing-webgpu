@@ -147,6 +147,13 @@ function createAndWriteObjectBuffers(device: any, objects: BoundingBox[]) {
   });
   device.queue.writeBuffer(numSpheresBuffer, 0, new Uint32Array([spheresArray.length]));
 
+
+  const numQuadsBuffer = device.createBuffer({
+    size: 4,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(numQuadsBuffer, 0, new Uint32Array([quadsArray.length]));
+
   // --- Quads setup ---
   const quadsBuffer = writeQuadsToBuffer(device, quadsArray);
 
@@ -170,6 +177,7 @@ function createAndWriteObjectBuffers(device: any, objects: BoundingBox[]) {
     quadsBuffer,
     bvhNodesBuffer,
     numBvhNodesBuffer,
+    numQuadsBuffer,
   };
 }
 
@@ -208,7 +216,7 @@ export async function render(device: any, context: any) {
   // Each sphere: vec3 center (3 floats), f32 radius (1 float), vec3 color (3 floats), f32 diffuse (1 float), f32 specular (1 float), f32 padding (1 float) = 12 floats (48 bytes) per sphere
   // Example: two spheres with materials
   const objects = scene.getObjectsArray();
-  const { spheresBuffer, numSpheresBuffer, quadsBuffer, bvhNodesBuffer, numBvhNodesBuffer } = createAndWriteObjectBuffers(device, objects);
+  const { spheresBuffer, numSpheresBuffer, quadsBuffer, bvhNodesBuffer, numBvhNodesBuffer, numQuadsBuffer } = createAndWriteObjectBuffers(device, objects);
 
   // --- RenderSettings uniform buffer ---
   const renderSettingsBuffer = createAndWriteRenderSettingsBuffer(device);
@@ -226,6 +234,7 @@ export async function render(device: any, context: any) {
       { binding: 7, visibility: 2, buffer: { type: 'read-only-storage' } }, // BVH nodes
       { binding: 8, visibility: 2, buffer: { type: 'uniform' } }, // num BVH nodes
       { binding: 9, visibility: 2, buffer: { type: 'read-only-storage' } }, // quads
+      { binding: 10, visibility: 2, buffer: { type: 'uniform' } }, // num quads
     ],
   });
 
@@ -293,6 +302,7 @@ export async function render(device: any, context: any) {
         { binding: 7, resource: { buffer: bvhNodesBuffer } },
         { binding: 8, resource: { buffer: numBvhNodesBuffer } },
         { binding: 9, resource: { buffer: quadsBuffer } },
+        { binding: 10, resource: { buffer: numQuadsBuffer } },
       ],
     });
 

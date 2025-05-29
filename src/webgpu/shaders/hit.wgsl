@@ -99,3 +99,17 @@ fn get_face_normal(ray: Ray, outward_normal: vec3<f32>) -> vec3<f32> {
     return -outward_normal; // inward facing
   }
 }
+
+fn hit_quads(ray: Ray, ray_t: Interval) -> HitRecord {
+  var travel_interval = Interval(ray_t.min, ray_t.max);
+  var temp_rec = default_hit_record();
+  for (var i: u32 = 0u; i < uNumQuads; i = i + 1u) {
+    let rec = hit_quad(quads[i], ray, travel_interval);
+    if (rec.t > 0.0 && rec.t < travel_interval.max) {
+      travel_interval.max = rec.t;
+      temp_rec = rec;
+    }
+  }
+  
+  return temp_rec;
+}

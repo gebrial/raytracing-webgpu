@@ -8,3 +8,4 @@
 @group(0) @binding(7) var<storage, read> bvhNodes: array<BVHNode>;
 @group(0) @binding(8) var<uniform> uNumBvhNodes: u32;
 @group(0) @binding(9) var<storage, read> quads: array<Quad>;
+@group(0) @binding(10) var<uniform> uNumQuads: u32;
