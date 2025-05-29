@@ -22,7 +22,7 @@ fn aabb_hit(bbmin: vec3<f32>, bbmax: vec3<f32>, ray: Ray, ray_t: Interval) -> bo
     }
     tmin = max(tmin, t0);
     tmax = min(tmax, t1);
-    if (tmax <= tmin) {
+    if (tmax < tmin) {
       return false;
     }
   }
