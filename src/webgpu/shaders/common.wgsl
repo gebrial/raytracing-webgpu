@@ -19,12 +19,3 @@ struct RenderSettings {
   random_seed: u32,
   background_type: u32, // 1 = blue sky, 0 = black
 };
-
-struct BVHNode {
-  min: vec3<f32>, _padding1: f32,
-  max: vec3<f32>, primitiveType: f32, // 0 for quad, 1 for sphere
-  leftIndex: f32,
-  rightIndex: f32,
-  primitiveIndex: f32,
-  isLeaf: f32,
-};

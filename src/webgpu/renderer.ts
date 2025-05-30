@@ -15,7 +15,7 @@ const NUM_SAMPLES_SQRT = 4; // You can set this to any value you want
 const NUM_BOUNCES = 10; // You can set this to any value you want
 const SINGLE_IMAGE = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = SINGLE_IMAGE ? 500 : 5000; // Set your desired frame limit here
-const SCENARIO: number = 1; // 0 for basic scene, 1 for final scene, 2 for Cornell box scene
+const SCENARIO: number = 2; // 0 for basic scene, 1 for final scene, 2 for Cornell box scene
 const USE_BVH = true; // Set to true if you want to use BVH for acceleration, false for no BVH
 
 function getScene(scenario: number): Scene {
@@ -73,7 +73,7 @@ function getElectiveShaderFiles() {
 
   // Add shader for hit detection; bvh vs linear
   if (USE_BVH) {
-    electiveShaderFiles.push('/src/webgpu/shaders/bvhnode.wgsl');
+    electiveShaderFiles.push('/src/webgpu/shaders/hit_world_bvh.wgsl');
   } else {
     electiveShaderFiles.push('/src/webgpu/shaders/hit_world_linear.wgsl');
   }
@@ -105,6 +105,7 @@ async function createShaderModule(device: any) {
     '/src/webgpu/shaders/raytracing.wgsl',
     '/src/webgpu/shaders/entry.wgsl',
     '/src/webgpu/shaders/bindings.wgsl',
+    '/src/webgpu/shaders/bvhnode.wgsl',
   ];
   const electiveShaderFiles = getElectiveShaderFiles();
   shaderFiles.push(...electiveShaderFiles);
