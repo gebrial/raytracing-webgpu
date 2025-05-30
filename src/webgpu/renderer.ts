@@ -14,16 +14,16 @@ import { BasicScene, CornellBoxScene, FinalScene, type Scene } from './scene';
 const NUM_SAMPLES_SQRT = 4; // You can set this to any value you want
 const NUM_BOUNCES = 10; // You can set this to any value you want
 const SINGLE_IMAGE = !false; // Set to true if you want to accumulate color over frames or false for a video
-const MAX_FRAMES = SINGLE_IMAGE ? 50 : 5000; // Set your desired frame limit here
-const SCENARIO = 2;
+const MAX_FRAMES = SINGLE_IMAGE ? 500 : 5000; // Set your desired frame limit here
+const SCENARIO: number = 1; // 0 for basic scene, 1 for final scene, 2 for Cornell box scene
 const USE_BVH = true; // Set to true if you want to use BVH for acceleration, false for no BVH
 
 function getScene(scenario: number): Scene {
   switch (scenario) {
     case 0:
-      return new FinalScene();
-    case 1:
       return new BasicScene();
+    case 1:
+      return new FinalScene();
     case 2:
       return new CornellBoxScene();
     default:
@@ -68,6 +68,31 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
   return sphereBuffer;
 }
 
+function getElectiveShaderFiles() {
+  const electiveShaderFiles = [];
+
+  // Add shader for hit detection; bvh vs linear
+  if (USE_BVH) {
+    electiveShaderFiles.push('/src/webgpu/shaders/bvhnode.wgsl');
+  } else {
+    electiveShaderFiles.push('/src/webgpu/shaders/hit_world_linear.wgsl');
+  }
+
+  // Add background shader based on scenario
+  switch (SCENARIO) {
+    case 0: // Basic scene
+      electiveShaderFiles.push('/src/webgpu/shaders/background_bluesky.wgsl');
+      break;
+    case 1: // Final scene
+    case 2: // Cornell box scene
+    default:
+      electiveShaderFiles.push('/src/webgpu/shaders/background_black.wgsl');
+      break;
+  }
+
+  return electiveShaderFiles
+}
+
 // Load WGSL shader from multiple modules and concatenate in the correct order
 async function createShaderModule(device: any) {
   const shaderFiles = [
@@ -80,13 +105,9 @@ async function createShaderModule(device: any) {
     '/src/webgpu/shaders/raytracing.wgsl',
     '/src/webgpu/shaders/entry.wgsl',
     '/src/webgpu/shaders/bindings.wgsl',
-    // '/src/webgpu/shaders/bvhnode.wgsl',
   ];
-  if (USE_BVH) {
-    shaderFiles.push('/src/webgpu/shaders/bvhnode.wgsl');
-  } else {
-    shaderFiles.push('/src/webgpu/shaders/hit_world_linear.wgsl');
-  }
+  const electiveShaderFiles = getElectiveShaderFiles();
+  shaderFiles.push(...electiveShaderFiles);
   const shaderCode = (await Promise.all(shaderFiles.map(f => fetch(f).then(res => res.text())))).join('\n');
   return device.createShaderModule({ code: shaderCode });
 }

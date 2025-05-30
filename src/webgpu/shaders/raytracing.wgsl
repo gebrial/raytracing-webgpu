@@ -84,15 +84,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
 
       ray_color *= hit_rec.material.color.xyz;
     } else {
-      if (uRenderSettings.background_type == 1u) {
-        let unit_direction = normalize(new_ray.direction);
-        let a = 0.5 * (unit_direction.y + 1.0);
-        ray_color *= mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), a);
-        return ray_color;
-      }
-
-      // No background color, return black
-      return vec3<f32>(0.0);
+      return ray_color * ray_miss(new_ray);
     }
   }
 
