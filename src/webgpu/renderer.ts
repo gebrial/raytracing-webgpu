@@ -16,6 +16,7 @@ const NUM_BOUNCES = 10; // You can set this to any value you want
 const SINGLE_IMAGE = !false; // Set to true if you want to accumulate color over frames or false for a video
 const MAX_FRAMES = SINGLE_IMAGE ? 50 : 5000; // Set your desired frame limit here
 const SCENARIO = 2;
+const USE_BVH = true; // Set to true if you want to use BVH for acceleration, false for no BVH
 
 function getScene(scenario: number): Scene {
   switch (scenario) {
@@ -79,8 +80,13 @@ async function createShaderModule(device: any) {
     '/src/webgpu/shaders/raytracing.wgsl',
     '/src/webgpu/shaders/entry.wgsl',
     '/src/webgpu/shaders/bindings.wgsl',
-    '/src/webgpu/shaders/bvhnode.wgsl',
+    // '/src/webgpu/shaders/bvhnode.wgsl',
   ];
+  if (USE_BVH) {
+    shaderFiles.push('/src/webgpu/shaders/bvhnode.wgsl');
+  } else {
+    shaderFiles.push('/src/webgpu/shaders/hit_world_linear.wgsl');
+  }
   const shaderCode = (await Promise.all(shaderFiles.map(f => fetch(f).then(res => res.text())))).join('\n');
   return device.createShaderModule({ code: shaderCode });
 }

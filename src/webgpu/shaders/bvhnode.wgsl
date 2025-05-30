@@ -1,12 +1,3 @@
-struct BVHNode {
-  min: vec3<f32>, _padding1: f32,
-  max: vec3<f32>, primitiveType: f32, // 0 for quad, 1 for sphere
-  leftIndex: f32,
-  rightIndex: f32,
-  primitiveIndex: f32,
-  isLeaf: f32,
-};
-
 // Helper: AABB-ray intersection
 fn aabb_hit(bbmin: vec3<f32>, bbmax: vec3<f32>, ray: Ray, ray_t: Interval) -> bool {
   var tmin = ray_t.min;
@@ -40,7 +31,7 @@ fn is_sphere(n: BVHNode) -> bool {
 
 // Hit record for intersection tests
 // normal should be a unit vector facing "outwards" from the surface
-fn hit_node(ray: Ray, ray_t: Interval) -> HitRecord {
+fn hit_world(ray: Ray, ray_t: Interval) -> HitRecord {
   // Stack-based traversal (max 32 nodes, adjust as needed)
   var stack: array<u32, 32>;
   var stackPtr: u32 = 0u;

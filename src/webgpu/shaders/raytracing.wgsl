@@ -38,7 +38,7 @@ fn ray_color(ray: Ray, rng_state: ptr<function, u32>) -> vec3<f32> {
   var ray_color = vec3<f32>(1.0);
   while (bounces_left > 0u) {
     new_ray.direction = normalize(new_ray.direction);
-    var hit_rec = hit_node(new_ray, Interval(0.001, INF));  // offset in interval to avoid self-intersection
+    var hit_rec = hit_world(new_ray, Interval(0.001, INF));  // offset in interval to avoid self-intersection
     if (hit_rec.t > 0.0) {
       bounces_left = bounces_left - 1u;
 

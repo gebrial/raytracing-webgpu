@@ -67,8 +67,8 @@ export class FinalScene extends Scene {
     const sunPosition = new Vec3(sunDistance * Math.cos(sunXZAngle), sunHeight, -sunDistance * Math.sin(sunXZAngle));
     const sunSphere = new Sphere(sunPosition, sunRadius, sunMaterial);
 
-    for (let i = -111; i < 111; i++) {
-      for (let j = -111; j < 111; j++) {
+    for (let i = -11; i < 11; i++) {
+      for (let j = -11; j < 11; j++) {
         const materialType = Math.random();
         const center = new Vec3(i + 0.9 * Math.random(), 0.2, j + 0.9 * Math.random());
         const nearMetalBall = new Vec3(4, 0.2, 0);
