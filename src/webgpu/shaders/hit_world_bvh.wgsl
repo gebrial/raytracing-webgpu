@@ -16,17 +16,17 @@ fn hit_world(ray: Ray, ray_t: Interval) -> HitRecord {
     if (stackPtr == 0u) { break; }
     stackPtr = stackPtr - 1u;
     let nodeIdx = stack[stackPtr];
-    let n = bvhNodes[nodeIdx];
+    let box = bvhNodes[nodeIdx];
 
     // AABB test
-    if (!aabb_hit(n.min, n.max, ray, Interval(ray_t.min, closest_t))) {
+    if (!aabb_hit(box.min, box.max, ray, Interval(ray_t.min, closest_t))) {
       continue;
     }
 
-    if (n.isLeaf > 0.5) {
+    if (box.isLeaf > 0.5) {
       // Leaf: test sphere
-      let primitiveIndex = u32(n.primitiveIndex);
-      if (is_sphere(n)) {
+      let primitiveIndex = u32(box.primitiveIndex);
+      if (is_sphere(box)) {
         // sphere
         let rec = hit_sphere(spheres[primitiveIndex], ray, Interval(ray_t.min, closest_t));
         if (rec.t > 0.0 && rec.t < closest_t) {
@@ -43,9 +43,9 @@ fn hit_world(ray: Ray, ray_t: Interval) -> HitRecord {
       }
     } else {
       // Push children (right, then left)
-      stack[stackPtr] = u32(n.rightIndex);
+      stack[stackPtr] = u32(box.rightIndex);
       stackPtr = stackPtr + 1u;
-      stack[stackPtr] = u32(n.leftIndex);
+      stack[stackPtr] = u32(box.leftIndex);
       stackPtr = stackPtr + 1u;
     }
   }
