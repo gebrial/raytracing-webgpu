@@ -2,6 +2,7 @@ import { Camera } from "./camera";
 import { Color } from "./color";
 import { DielectricMaterial, EmissiveMaterial, GlossyMaterial, LambertianMaterial, MetalMaterial } from "./material";
 import { Quadrilateral } from "./quadrilateral";
+import { Box } from "./shapes/Box";
 import { Sphere, type BoundingBox } from "./sphere";
 import { Vec3 } from "./vec3";
 
@@ -149,6 +150,7 @@ export class CornellBoxScene extends Scene {
     const whiteMaterial = new LambertianMaterial(new Color(0.73, 0.73, 0.73));
     const greenMaterial = new LambertianMaterial(new Color(0.12, 0.45, 0.15));
     const lightMaterial = new EmissiveMaterial(new Color(1.0, 1.0, 1.0), 15.0);
+    const mirrorMaterial = new MetalMaterial(new Color(1.0, 1.0, 1.0), 0.0);
 
     // Create the walls of the Cornell Box
     // Left wall
@@ -157,7 +159,7 @@ export class CornellBoxScene extends Scene {
         new Vec3(555, 0, 0), // corner
         new Vec3(0, 555, 0), // u vector
         new Vec3(0, 0, 555), // v vector
-        greenMaterial // material
+        redMaterial // material
       )
     );
 
@@ -167,7 +169,7 @@ export class CornellBoxScene extends Scene {
         new Vec3(0, 0, 0), // corner
         new Vec3(0, 555, 0), // u vector
         new Vec3(0, 0, 555), // v vector
-        redMaterial // material
+        greenMaterial // material
       )
     );
 
@@ -208,15 +210,31 @@ export class CornellBoxScene extends Scene {
       )
     );
 
+    // Add boxes
+    const cornellTallBlock = new Box(
+      new Vec3(314, 0, 456), // min corner
+      new Vec3(0, 330, 0), // u vector
+      new Vec3(160, 0, -50), // v vector
+      new Vec3(-50, 0, -160), // w vector
+      mirrorMaterial // material
+    );
+    objects.push(...cornellTallBlock.getBoundingBoxes());
+
+    const cornellShortBlock = new Box(
+      new Vec3(130, 0, 65), // min corner
+      new Vec3(0, 165, 0), // u vector
+      new Vec3(160, 0, 50), // v vector
+      new Vec3(-50, 0, 160), // w vector
+      whiteMaterial // material
+    );
+    objects.push(...cornellShortBlock.getBoundingBoxes())
+
     return objects;
   }
 
   getCameraData(_time: number = 0.0): Float32Array {
-    // const lookFrom = [13, 2, 3]; // camera position
-
-    // rotate camera around origin
-    const lookFrom = new Vec3(278, 278, -800); // camera position
-    const lookAt = new Vec3(278, 278, 0); // point to look at
+    const lookFrom = new Vec3(278, 273, -800); // camera position
+    const lookAt = new Vec3(278, 273, 0); // point to look at
     const vup = new Vec3(0, 1, 0);
     const camera = new Camera(lookFrom, lookAt, vup);
     camera.vfov = 40.0 * (Math.PI / 180.0);

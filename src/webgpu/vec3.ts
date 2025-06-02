@@ -1,7 +1,7 @@
 export class Vec3{
-    public x: number;
-    public y: number;
-    public z: number;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
 
     constructor(x: number, y: number, z: number) {
         this.x = x;
@@ -32,6 +32,25 @@ export class Vec3{
         return new Vec3(this.x * scalar, this.y * scalar, this.z * scalar);
     }
 
+    negate(): Vec3 {
+        return new Vec3(-this.x, -this.y, -this.z);
+    }
+
+    rotate(angle: number, axis: Vec3): Vec3 {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const dot = this.x * axis.x + this.y * axis.y + this.z * axis.z;
+        const crossX = this.y * axis.z - this.z * axis.y;
+        const crossY = this.z * axis.x - this.x * axis.z;
+        const crossZ = this.x * axis.y - this.y * axis.x;
+
+        return new Vec3(
+            this.x * cos + crossX * sin + axis.x * dot * (1 - cos),
+            this.y * cos + crossY * sin + axis.y * dot * (1 - cos),
+            this.z * cos + crossZ * sin + axis.z * dot * (1 - cos)
+        );
+    }
+
     at(index: number): number {
         switch (index) {
             case 0:
@@ -40,22 +59,6 @@ export class Vec3{
                 return this.y;
             case 2:
                 return this.z;
-            default:
-                throw new Error('Index out of bounds');
-        }
-    }
-
-    set(index: number, value: number): void {
-        switch (index) {
-            case 0:
-                this.x = value;
-                break;
-            case 1:
-                this.y = value;
-                break;
-            case 2:
-                this.z = value;
-                break;
             default:
                 throw new Error('Index out of bounds');
         }
