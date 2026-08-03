@@ -9,6 +9,21 @@ import { Quadrilateral } from './quadrilateral';
 import { BVHNode } from './boundVolumeHierarchy';
 import { BasicScene, CornellBoxScene, FinalScene, type Scene } from './scene';
 
+import commonShader from './shaders/common.wgsl?raw';
+import intervalShader from './shaders/interval.wgsl?raw';
+import geometryShader from './shaders/geometry.wgsl?raw';
+import randomShader from './shaders/random.wgsl?raw';
+import cameraShader from './shaders/camera.wgsl?raw';
+import hitShader from './shaders/hit.wgsl?raw';
+import raytracingShader from './shaders/raytracing.wgsl?raw';
+import entryShader from './shaders/entry.wgsl?raw';
+import bindingsShader from './shaders/bindings.wgsl?raw';
+import bvhnodeShader from './shaders/bvhnode.wgsl?raw';
+import hitWorldBvhShader from './shaders/hit_world_bvh.wgsl?raw';
+import hitWorldLinearShader from './shaders/hit_world_linear.wgsl?raw';
+import backgroundBlackShader from './shaders/background_black.wgsl?raw';
+import backgroundBlueskyShader from './shaders/background_bluesky.wgsl?raw';
+
 
 // constants
 const NUM_SAMPLES_SQRT = 4; // You can set this to any value you want
@@ -68,49 +83,43 @@ function writeSpheresToBuffer(device: any, spheres: Sphere[]) {
   return sphereBuffer;
 }
 
-function getElectiveShaderFiles() {
-  const electiveShaderFiles = [];
+function getElectiveShaderSources() {
+  const electiveShaders = [];
 
   // Add shader for hit detection; bvh vs linear
-  if (USE_BVH) {
-    electiveShaderFiles.push('/src/webgpu/shaders/hit_world_bvh.wgsl');
-  } else {
-    electiveShaderFiles.push('/src/webgpu/shaders/hit_world_linear.wgsl');
-  }
+  electiveShaders.push(USE_BVH ? hitWorldBvhShader : hitWorldLinearShader);
 
   // Add background shader based on scenario
   switch (SCENARIO) {
     case 0: // Basic scene
-      electiveShaderFiles.push('/src/webgpu/shaders/background_bluesky.wgsl');
+      electiveShaders.push(backgroundBlueskyShader);
       break;
     case 1: // Final scene
     case 2: // Cornell box scene
     default:
-      electiveShaderFiles.push('/src/webgpu/shaders/background_black.wgsl');
+      electiveShaders.push(backgroundBlackShader);
       break;
   }
 
-  return electiveShaderFiles
+  return electiveShaders;
 }
 
-// Load WGSL shader from multiple modules and concatenate in the correct order
-async function createShaderModule(device: any) {
-  const shaderFiles = [
-    '/src/webgpu/shaders/common.wgsl',
-    '/src/webgpu/shaders/interval.wgsl',
-    '/src/webgpu/shaders/geometry.wgsl',
-    '/src/webgpu/shaders/random.wgsl',
-    '/src/webgpu/shaders/camera.wgsl',
-    '/src/webgpu/shaders/hit.wgsl',
-    '/src/webgpu/shaders/raytracing.wgsl',
-    '/src/webgpu/shaders/entry.wgsl',
-    '/src/webgpu/shaders/bindings.wgsl',
-    '/src/webgpu/shaders/bvhnode.wgsl',
+// Concatenate WGSL shader source from multiple modules in the correct order
+function createShaderModule(device: any) {
+  const shaderSources = [
+    commonShader,
+    intervalShader,
+    geometryShader,
+    randomShader,
+    cameraShader,
+    hitShader,
+    raytracingShader,
+    entryShader,
+    bindingsShader,
+    bvhnodeShader,
+    ...getElectiveShaderSources(),
   ];
-  const electiveShaderFiles = getElectiveShaderFiles();
-  shaderFiles.push(...electiveShaderFiles);
-  const shaderCode = (await Promise.all(shaderFiles.map(f => fetch(f).then(res => res.text())))).join('\n');
-  return device.createShaderModule({ code: shaderCode });
+  return device.createShaderModule({ code: shaderSources.join('\n') });
 }
 
 function createAndWriteImageBuffers(device: any, canvas: HTMLCanvasElement) {
@@ -229,7 +238,7 @@ function createAndWriteRenderSettingsBuffer(device: any) {
 
 
 export async function render(device: any, context: any) {
-  const shaderModule = await createShaderModule(device);
+  const shaderModule = createShaderModule(device);
 
   // Create uniform buffer for canvas
   // Create a storage buffer for accumulating color per pixel (width * height * 4 floats)
